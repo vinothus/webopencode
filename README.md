@@ -53,6 +53,45 @@ cp /tmp/sherpa-onnx-*-linux-x64-jni/lib/*.so lib/
 > Pick the archive for your platform. Linux x86-64 is shown above; the release page also has
 > aarch64, macOS and Windows builds.
 
+### Running on Windows
+
+Everything above works from **Command Prompt** (`cmd`) or **PowerShell**, with three
+differences: the wrapper is `mvnw.cmd`, the natives are `.dll` files, and the install script
+is bash-only (use the `mvnw.cmd` form below).
+
+```bat
+:: 1. the sherpa-onnx JVM bindings -> lib\ and then into the local Maven repository
+curl -L -o lib\sherpa-onnx-jvm.jar ^
+  https://github.com/csukuangfj/sherpa-onnx/releases/download/v1.12.1/sherpa-onnx-v1.12.1-java21.jar
+
+mvnw.cmd install:install-file ^
+  -Dfile=lib\sherpa-onnx-jvm.jar ^
+  -DgroupId=com.k2fsa.sherpa.onnx -DartifactId=sherpa-onnx -Dversion=1.12.1 -Dpackaging=jar
+
+:: 2. the native libraries -> lib\  (Windows 10/11 ship a bsdtar that reads .tar.bz2)
+curl -L -o win-jni.tar.bz2 ^
+  https://github.com/csukuangfj/sherpa-onnx/releases/download/v1.12.1/sherpa-onnx-v1.12.1-win-x64-jni.tar.bz2
+tar -xjf win-jni.tar.bz2
+copy sherpa-onnx-v1.12.1-win-x64-jni\lib\*.dll lib\
+
+:: 3. build and run
+mvnw.cmd package
+java -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar
+```
+
+`lib\` then holds `sherpa-onnx-jni.dll`, `onnxruntime.dll`, `onnxruntime_providers_shared.dll`
+and `sherpa-onnx-cxx-api.dll`. Keep all four together — the JNI library resolves them from
+its own directory.
+
+The standalone transcriber works the same way:
+
+```bat
+java -Djava.library.path=lib -Dloader.main=com.pawwork.opencode.stt.SttServer ^
+  -Dstt.models.dir=models -Dstt.bind=0.0.0.0 -Dstt.port=8092 ^
+  -cp target\opencode-spring-boot-1.0.0.jar ^
+  org.springframework.boot.loader.launch.PropertiesLauncher
+```
+
 ### 2. Build and run
 
 ```bash

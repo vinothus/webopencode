@@ -127,7 +127,9 @@ public class SttEngine implements AutoCloseable {
                 : t.getClass().getSimpleName() + ": " + message;
         if (t instanceof UnsatisfiedLinkError) {
             return "the sherpa-onnx native library could not be loaded (" + detail
-                    + ") — put libsherpa-onnx-jni.so and libonnxruntime.so in ./lib and start with "
+                    + ") — put the sherpa-onnx JNI library and onnxruntime in ./lib "
+                    + "(libsherpa-onnx-jni.so + libonnxruntime.so on Linux/macOS, "
+                    + "sherpa-onnx-jni.dll + onnxruntime.dll on Windows) and start with "
                     + "-Djava.library.path=lib";
         }
         return detail;
