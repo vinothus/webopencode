@@ -1,0 +1,26 @@
+# Build output
+target/
+*.class
+
+# Runtime / editor / OS noise
+app.log
+app.pid
+*.log
+hs_err_pid*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local rollback copies (kept on disk, never published)
+*.bak
+*.bak-*
+*.orig
+*.rej
+
+# Local secrets — never commit (use environment variables)
+.env
+.env.*
+*.pem
+*.key
+application-local.yml

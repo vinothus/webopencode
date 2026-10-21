@@ -1,0 +1,103 @@
+server:
+  port: 8080
+  servlet:
+    async:
+      request-timeout: 600000
+    multipart:
+      # Audio clips posted to /api/audio/transcribe.
+      max-file-size: 25MB
+      max-request-size: 26MB
+
+spring:
+  application:
+    name: opencode-demo-app
+  jackson:
+    default-property-inclusion: non_null
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+# ---------------------------------------------------------------------------
+# The OpenCode library. The top-level keys describe the primary provider (the
+# OpenCode Zen gateway); `providers` adds/overrides named ones.
+# ---------------------------------------------------------------------------
+opencode:
+  enabled: true
+  base-url: https://opencode.ai/zen/v1
+  api-key: ""
+  default-provider: zen
+  default-model: big-pickle
+
+  # Seed for x-opencode-session. It is hashed into the id shape the gateway
+  # accepts (ses_ + 26 hex); keep it fixed so the session stays stable across
+  # restarts, or leave it blank for a per-instance one.
+  stable-session-id: pawwork-opencode-spring
+
+  user-agent: opencode/1.18.31
+  client-name: cli-rotated-20261004-1234
+  project-name: rotated-20261004-1234
+
+  include-official-tools: true
+  force-streaming: true
+
+  max-tokens: 32000
+  max-tool-rounds: 12
+  tool-result-limit: 4000
+  max-repeated-tool-failures: 5
+
+  # Local tool execution. The built-in coding tools (read/glob/grep/write/edit/bash)
+  # run inside this JVM; the file tools are confined to the workspace below.
+  tools:
+    enabled: true
+    # Blank => the process working directory, so the app stays portable.
+    # Set an absolute path to pin the agent to a specific tree.
+    workspace: ""
+    # The shell always asks for confirmation unless this is true.
+    allow-shell-without-approval: false
+    # How long a paused stream waits for the browser's Allow/Deny.
+    approval-timeout-seconds: 300
+    # Directory of skill sub-directories, each holding a SKILL.md. Blank disables the skill tool.
+    skills-dir: /config/Engineering/pawwork-linux/skills
+    # How deep the `task` tool may nest sub-agents before refusing.
+    max-task-depth: 2
+
+  connect-timeout-seconds: 30
+  request-timeout-seconds: 300
+  stream-idle-timeout-seconds: 300
+
+  retry:
+    max-attempts: 3
+    backoff-millis: 1000
+    dns-backoff-millis: 1500
+    retry-on-transient-http: true
+
+  identity:
+    rotate-hourly: true
+
+  providers:
+    deepseek:
+      base-url: https://api.deepseek.com/v1
+      api-key: ${DEEPSEEK_API_KEY:}
+      default-model: deepseek-chat
+      max-tokens: 4096
+    openai:
+      base-url: https://api.openai.com/v1
+      api-key: ${OPENAI_API_KEY:}
+      default-model: gpt-5.2
+
+# ---------------------------------------------------------------------------
+# Local speech-to-text. The browser only sends audio; decoding, language
+# detection (English / Tamil) and the Whisper inference happen in the Java
+# sherpa-onnx Whisper service on the host (systemd unit engtop-stt) — the
+# webtop reaches it through pasta at host.containers.internal.
+# ---------------------------------------------------------------------------
+stt:
+  base-url: http://host.containers.internal:8092/api/audio
+  timeout-seconds: 180
+  max-bytes: 26214400          # 25 MB of audio per request
+
