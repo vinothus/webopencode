@@ -40,6 +40,13 @@ java -cp .:lib/sherpa-onnx-jvm.jar -Djava.library.path=lib \
 curl -X POST 'http://127.0.0.1:8092/api/models/download?model=small&source=github'
 ```
 
+Confirm it is up before installing anything:
+
+```bash
+curl -s localhost:8092/api/audio/health   # status "no-models" (or "ready" once a model is in)
+curl -s localhost:8092/api/models         # catalogue, installed models, free disk
+```
+
 There is **no model required to start**: with an empty models directory the service starts
 in model-less mode, reports `status:"no-models"` on `/api/audio/health`, and answers `503`
 on `/api/audio/transcribe` until a model is installed. Typing, the app and the browser

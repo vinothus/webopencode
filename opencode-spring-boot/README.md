@@ -17,6 +17,9 @@ client had to learn the hard way.
 
 ## Quick start
 
+Requirements: **JDK 17+** (tested on JDK 21). The Maven wrapper downloads Maven
+3.9.11 and all dependencies, so nothing else needs installing.
+
 ```bash
 cd opencode-spring-boot
 ./mvnw install                   # builds both modules (wrapper fetches Maven 3.9.11)
@@ -24,11 +27,34 @@ cd opencode-demo-app
 ../mvnw spring-boot:run          # http://localhost:8080
 ```
 
+Or run the packaged jar instead of `spring-boot:run`:
+
+```bash
+cd opencode-spring-boot
+./mvnw -DskipTests package
+java -jar opencode-demo-app/target/opencode-demo-app-1.0.0.jar          # http://localhost:8080
+java -jar opencode-demo-app/target/opencode-demo-app-1.0.0.jar --server.port=9090   # other port
+```
+
+No API key is needed: the default model (`big-pickle`) runs on the free
+`opencode.ai/zen` gateway. Export `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` etc. only
+if you want a paid provider, then select that model in the page.
+
 * Swagger UI → <http://localhost:8080/swagger-ui.html>
 * OpenAPI JSON → <http://localhost:8080/v3/api-docs>
 * Voice page → <http://localhost:8080/voice-chat.html> — speak, and the **server** turns it into
-  text (English + தமிழ்) before the model sees it. Start the local transcriber first:
-  `../stt/start-stt.sh`
+  text (English + தமிழ்) before the model sees it.
+
+**Speech-to-text is optional.** The app boots and serves the page without it —
+typing, the coding tools and the browser recogniser all work. Only server
+transcription needs the transcriber running (see [`stt/`](../stt/)). Start it,
+install a model from the page's 📦 panel, and point the app at it with
+`--stt.base-url=http://127.0.0.1:8092/api/audio` when it is not on
+`host.containers.internal:8092`. Check the wiring with:
+
+```bash
+curl -s localhost:8080/api/audio/health   # {"ok":true,"status":"ready"|"no-models",…}
+```
 
 Ask something that forces a tool call:
 
@@ -446,5 +472,7 @@ opencode-spring-boot/
         └── tools/       SampleTools, Arithmetic
 ```
 
-Alongside the project, `../stt/` holds the local speech-to-text sidecar that
-`AudioController` calls (faster-whisper model + `start-stt.sh` + `README.md`).
+Alongside this project, [`../stt/`](../stt/) is the local speech-to-text
+service that `AudioController` calls — a single-file Java program
+(`SttServer.java`, sherpa-onnx Whisper), with its own `README.md`. It replaces
+the retired Python `faster-whisper` sidecar.
