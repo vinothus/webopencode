@@ -17,6 +17,10 @@ rem --- the truststore, if setup-vpn-trust.bat created one
 set "JAVA_OPTS="
 if exist "lib\cacerts" set "JAVA_OPTS=-Djavax.net.ssl.trustStore=lib\cacerts -Djavax.net.ssl.trustStorePassword=changeit"
 
+rem --- the build runs in a JVM of its own, so it needs the truststore too
+set "MAVEN_OPTS="
+if exist "lib\cacerts" set "MAVEN_OPTS=-Djavax.net.ssl.trustStore=lib\cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+
 if not exist "target\opencode-spring-boot-1.0.0.jar" (
     echo Building ...
     call mvnw.cmd clean package
@@ -31,5 +35,5 @@ echo.
 echo === OpenCode Spring Boot ===
 echo     http://localhost:8080/voice-chat.html
 echo.
-java %JAVA_OPTS% -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar %*
+call java %JAVA_OPTS% -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar %*
 exit /b %ERRORLEVEL%

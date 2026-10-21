@@ -53,33 +53,33 @@ echo     out:  "%OUT%"
 echo.
 
 echo     root CA ...
-"%KEYTOOL%" -genkeypair -alias vpn-test-root -keyalg RSA -keysize 2048 -validity 3650 ^
+call "%KEYTOOL%" -genkeypair -alias vpn-test-root -keyalg RSA -keysize 2048 -validity 3650 ^
     -dname "CN=OpenCode Test VPN Root CA, O=OpenCode, C=US" ^
     -ext bc=ca:true ^
     -keystore "%OUT%\vpn-test-root.p12" -storetype PKCS12 -storepass "%PASS%" -keypass "%PASS%"
 if errorlevel 1 goto :fail
 
 echo     exporting the CA ...
-"%KEYTOOL%" -exportcert -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" -file "%OUT%\vpn-test-root.cer"
+call "%KEYTOOL%" -exportcert -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" -file "%OUT%\vpn-test-root.cer"
 if errorlevel 1 goto :fail
-"%KEYTOOL%" -exportcert -rfc -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" -file "%OUT%\vpn-test-root.pem"
+call "%KEYTOOL%" -exportcert -rfc -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" -file "%OUT%\vpn-test-root.pem"
 if errorlevel 1 goto :fail
 
 echo     server certificate ...
-"%KEYTOOL%" -genkeypair -alias vpn-test-server -keyalg RSA -keysize 2048 -validity 3650 ^
+call "%KEYTOOL%" -genkeypair -alias vpn-test-server -keyalg RSA -keysize 2048 -validity 3650 ^
     -dname "CN=localhost, O=OpenCode, C=US" ^
     -keystore "%OUT%\vpn-test-server.p12" -storetype PKCS12 -storepass "%PASS%" -keypass "%PASS%"
 if errorlevel 1 goto :fail
 
-"%KEYTOOL%" -certreq -alias vpn-test-server -keystore "%OUT%\vpn-test-server.p12" -storepass "%PASS%" -file "%OUT%\vpn-test-server.csr"
+call "%KEYTOOL%" -certreq -alias vpn-test-server -keystore "%OUT%\vpn-test-server.p12" -storepass "%PASS%" -file "%OUT%\vpn-test-server.csr"
 if errorlevel 1 goto :fail
 
-"%KEYTOOL%" -gencert -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" ^
+call "%KEYTOOL%" -gencert -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" ^
     -infile "%OUT%\vpn-test-server.csr" -outfile "%OUT%\vpn-test-server.cer" ^
     -ext san=dns:localhost,ip:127.0.0.1 -validity 3650
 if errorlevel 1 goto :fail
 
-"%KEYTOOL%" -gencert -rfc -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" ^
+call "%KEYTOOL%" -gencert -rfc -alias vpn-test-root -keystore "%OUT%\vpn-test-root.p12" -storepass "%PASS%" ^
     -infile "%OUT%\vpn-test-server.csr" -outfile "%OUT%\vpn-test-server.pem" ^
     -ext san=dns:localhost,ip:127.0.0.1 -validity 3650
 if errorlevel 1 goto :fail

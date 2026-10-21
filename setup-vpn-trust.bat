@@ -90,16 +90,16 @@ if exist "lib\cacerts" (
 )
 
 rem --- drop any earlier copy of this alias, so the import never prompts
-"%KEYTOOL%" -delete -alias "%ALIAS%" -keystore "lib\cacerts" -storepass changeit >nul 2>&1
+call "%KEYTOOL%" -delete -alias "%ALIAS%" -keystore "lib\cacerts" -storepass changeit >nul 2>&1
 
 echo     importing ...
-"%KEYTOOL%" -importcert -alias "%ALIAS%" -file "%CA_FILE%" ^
+call "%KEYTOOL%" -importcert -alias "%ALIAS%" -file "%CA_FILE%" ^
     -keystore "lib\cacerts" -storepass changeit -noprompt
 if errorlevel 1 goto :fail
 
 echo.
 echo     the truststore now holds:
-"%KEYTOOL%" -list -v -alias "%ALIAS%" -keystore "lib\cacerts" -storepass changeit
+call "%KEYTOOL%" -list -v -alias "%ALIAS%" -keystore "lib\cacerts" -storepass changeit
 
 echo.
 echo === Done ===

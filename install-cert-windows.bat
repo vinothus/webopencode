@@ -52,9 +52,9 @@ echo     store: %SCOPE%\Root
 echo.
 
 if /i "%SCOPE%"=="LocalMachine" (
-    certutil -addstore -f Root "%CA_FILE%"
+    call certutil -addstore -f Root "%CA_FILE%"
 ) else (
-    certutil -user -addstore -f Root "%CA_FILE%"
+    call certutil -user -addstore -f Root "%CA_FILE%"
 )
 if errorlevel 1 goto :fail
 

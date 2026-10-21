@@ -35,13 +35,14 @@ echo     project: "%CD%"
 echo.
 
 rem ---------------------------------------------------------------- the tools
-where curl.exe >nul 2>&1
+rem  "call" matters: a batch file invoked without it never returns control
+call where curl.exe >nul 2>&1
 if errorlevel 1 (
     echo ERROR: curl.exe was not found. It ships with Windows 10 1803 and later.
     goto :fail
 )
 
-where tar.exe >nul 2>&1
+call where tar.exe >nul 2>&1
 if errorlevel 1 (
     echo ERROR: tar.exe was not found. It ships with Windows 10 1803 and later.
     goto :fail
@@ -53,6 +54,11 @@ if not exist "mvnw.cmd" (
 )
 
 if not exist "lib" mkdir "lib"
+
+rem --- a VPN that re-signs HTTPS breaks Maven's own downloads as well, because
+rem     the build runs in a JVM of its own. Point it at the same truststore.
+rem     (the working directory is the project root, so a relative path is fine)
+if exist "lib\cacerts" set "MAVEN_OPTS=-Djavax.net.ssl.trustStore=lib\cacerts -Djavax.net.ssl.trustStorePassword=changeit"
 
 rem --- a truncated download is worse than none: re-fetch anything implausibly small
 set "JAR_BYTES=0"
@@ -69,7 +75,7 @@ if exist "lib\sherpa-onnx-jvm.jar" (
     echo      lib\sherpa-onnx-jvm.jar is already there.
 ) else (
     echo      downloading %JAR_NAME%
-    curl.exe -L --fail --output "lib\sherpa-onnx-jvm.jar" "%JAR_URL%"
+    call curl.exe -L --fail --output "lib\sherpa-onnx-jvm.jar" "%JAR_URL%"
     if errorlevel 1 goto :fail
 )
 
@@ -80,11 +86,11 @@ if exist "lib\sherpa-onnx-jni.dll" (
 ) else (
     if not exist "%JNI_NAME%" (
         echo      downloading %JNI_NAME%
-        curl.exe -L --fail --output "%JNI_NAME%" "%JNI_URL%"
+        call curl.exe -L --fail --output "%JNI_NAME%" "%JNI_URL%"
         if errorlevel 1 goto :fail
     )
     echo      extracting
-    tar.exe -xf "%JNI_NAME%"
+    call tar.exe -xf "%JNI_NAME%"
     if errorlevel 1 goto :fail
     copy /y "%JNI_DIR%\lib\*.dll" "lib\" >nul
     if errorlevel 1 goto :fail

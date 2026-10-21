@@ -66,15 +66,26 @@ setup.bat
 Then start it:
 
 ```bat
-java -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar
-```
-
-`run.bat` does the same and adds the VPN truststore below when there is one:
-
-```bat
 run.bat
 run.bat --server.port=9090        :: any Spring Boot argument is passed through
 ```
+
+`run.bat` builds the jar first if it is not there yet, and passes the VPN truststore along when
+there is one.
+
+> **Behind a VPN that inspects TLS?** Do the truststore step **before** `setup.bat` — the build
+> downloads things too, and it needs the truststore as well. See
+> [Behind a VPN that inspects TLS](#behind-a-vpn-that-inspects-tls).
+
+When something does not work, `doctor.bat` says what is missing:
+
+```bat
+doctor.bat
+```
+
+It checks the JDK, the VPN truststore, the sherpa-onnx bindings, the native libraries, the local
+Maven repository, the built jar and the downloaded models — and it makes a real HTTPS call to the
+gateway with the truststore that is in force, so a PKIX failure shows up there too.
 
 By hand, the same three steps are:
 
@@ -133,8 +144,39 @@ setup-vpn-trust.bat C:\path\to\vpn-root.cer
 Export the certificate first — `certmgr.msc` → *Trusted Root Certification Authorities* → the
 VPN's CA → *Export Certificate* → `.cer` (Base-64). Cloudflare One / WARP publishes one as
 `Cloudflare_WARP_Root_CA.pem`. The script copies the JDK truststore to `lib\cacerts` first, so
-**all the normal public CAs keep working**, and then adds the VPN root to that copy. `run.bat`
-picks the truststore up automatically.
+**all the normal public CAs keep working**, and then adds the VPN root to that copy.
+
+> **Do this before `setup.bat`.** The build downloads as well, and it runs in a JVM of its own —
+> `setup.bat` and `run.bat` pass the truststore to Maven through `MAVEN_OPTS` for that reason.
+
+**Nothing else is needed.** The app looks for `lib\cacerts` itself at start-up and points the
+JVM at it, so there is no `-D` flag to remember and no way to forget it — `run.bat` passes the
+same flags anyway, and both the Spring Boot app and the standalone transcriber do it:
+
+```
+[opencode] using truststore C:\projects\webopencode\lib\cacerts
+```
+
+To point it somewhere else, or to turn it off:
+
+```bat
+java -Dopencode.ssl.truststore=D:\certs\my-ca.p12 ^
+     -Dopencode.ssl.truststore-password=secret ^
+     -jar target\opencode-spring-boot-1.0.0.jar
+```
+
+To check what the JVM thinks of a server, without starting the app:
+
+```bat
+java scripts\TlsProbe.java https://opencode.ai/zen/v1/models
+```
+
+```
+  truststore: (the JDK default)
+  [ok] https://opencode.ai/zen/v1/models -> HTTP 200
+```
+
+`doctor.bat` runs exactly that probe at the end, so a PKIX failure shows up in its output.
 
 On Linux and macOS the same two steps, by hand:
 
@@ -490,11 +532,13 @@ tools the gateway advertises.
 ├── mvnw, mvnw.cmd, .mvn/         the Maven wrapper
 ├── setup.bat                     one-time setup on Windows
 ├── run.bat                       start the app (Windows)
+├── doctor.bat                    check that everything is in place (Windows)
 ├── setup-vpn-trust.bat           trust a VPN's TLS-inspection certificate
 ├── make-test-cert.bat            mint a throw-away CA for testing the above
 ├── install-cert-windows.bat      put a certificate in the Windows cert store
 ├── cert/                         a ready-made test CA           (vpn-test-root.cer/.pem)
 ├── scripts/install-stt-jar.sh    installs the sherpa-onnx bindings into ~/.m2
+├── scripts/TlsProbe.java         a one-file HTTPS probe (used by doctor.bat)
 ├── lib/                          sherpa jar + native libraries   (gitignored)
 ├── models/                       Whisper models                  (gitignored)
 └── src
