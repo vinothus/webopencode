@@ -55,9 +55,21 @@ cp /tmp/sherpa-onnx-*-linux-x64-jni/lib/*.so lib/
 
 ### Running on Windows
 
-Everything above works from **Command Prompt** (`cmd`) or **PowerShell**, with three
-differences: the wrapper is `mvnw.cmd`, the natives are `.dll` files, and the install script
-is bash-only (use the `mvnw.cmd` form below).
+Everything above works from **Command Prompt** (`cmd`) or **PowerShell**. `setup.bat` does the
+whole one-time setup — the bindings, the native libraries, the Maven install and the build:
+
+```bat
+cd C:\projects\webopencode
+setup.bat
+```
+
+Then start it:
+
+```bat
+java -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar
+```
+
+By hand, the same three steps are:
 
 ```bat
 :: 1. the sherpa-onnx JVM bindings -> lib\ and then into the local Maven repository
@@ -74,9 +86,8 @@ curl -L -o win-jni.tar.bz2 ^
 tar -xjf win-jni.tar.bz2
 copy sherpa-onnx-v1.12.1-win-x64-jni\lib\*.dll lib\
 
-:: 3. build and run
-mvnw.cmd package
-java -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar
+:: 3. build
+mvnw.cmd clean package
 ```
 
 `lib\` then holds `sherpa-onnx-jni.dll`, `onnxruntime.dll`, `onnxruntime_providers_shared.dll`
@@ -364,6 +375,7 @@ tools the gateway advertises.
 .
 ├── pom.xml                       one module, one jar
 ├── mvnw, mvnw.cmd, .mvn/         the Maven wrapper
+├── setup.bat                     one-time setup on Windows
 ├── scripts/install-stt-jar.sh    installs the sherpa-onnx bindings into ~/.m2
 ├── lib/                          sherpa jar + native libraries   (gitignored)
 ├── models/                       Whisper models                  (gitignored)

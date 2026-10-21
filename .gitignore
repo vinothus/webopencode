@@ -6,6 +6,11 @@ target/
 # See scripts/install-stt-jar.sh and the README.
 lib/
 
+# The native archives themselves, unpacked by setup.bat / the README.
+sherpa-onnx-v*-jni/
+sherpa-onnx-v*-jni.tar.bz2
+win-jni.tar.bz2
+
 # Whisper models are several hundred MB each and are installed at runtime
 # through /api/models/download (or copied in by hand). Never commit them.
 models/
