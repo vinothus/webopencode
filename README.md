@@ -69,6 +69,13 @@ Then start it:
 java -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar
 ```
 
+`run.bat` does the same and adds the VPN truststore below when there is one:
+
+```bat
+run.bat
+run.bat --server.port=9090        :: any Spring Boot argument is passed through
+```
+
 By hand, the same three steps are:
 
 ```bat
@@ -101,6 +108,87 @@ java -Djava.library.path=lib -Dloader.main=com.pawwork.opencode.stt.SttServer ^
   -Dstt.models.dir=models -Dstt.bind=0.0.0.0 -Dstt.port=8092 ^
   -cp target\opencode-spring-boot-1.0.0.jar ^
   org.springframework.boot.loader.launch.PropertiesLauncher
+```
+
+### Behind a VPN that inspects TLS
+
+Some VPNs (corporate, Cloudflare One / WARP) intercept HTTPS and re-sign traffic with their
+own root CA. Chrome and Edge trust it, because the VPN client installs it in the **Windows
+certificate store**. The JVM does not — it has its own truststore — so every HTTPS call
+fails with:
+
+```
+PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException:
+unable to find valid certification path to requested target
+```
+
+It hits the OpenCode gateway, the `http_fetch` / `webfetch` tools and the model downloads
+alike. `setup-vpn-trust.bat` fixes it without touching the JDK and without administrator
+rights:
+
+```bat
+setup-vpn-trust.bat C:\path\to\vpn-root.cer
+```
+
+Export the certificate first — `certmgr.msc` → *Trusted Root Certification Authorities* → the
+VPN's CA → *Export Certificate* → `.cer` (Base-64). Cloudflare One / WARP publishes one as
+`Cloudflare_WARP_Root_CA.pem`. The script copies the JDK truststore to `lib\cacerts` first, so
+**all the normal public CAs keep working**, and then adds the VPN root to that copy. `run.bat`
+picks the truststore up automatically.
+
+On Linux and macOS the same two steps, by hand:
+
+```bash
+cp "$(java -XshowSettings:properties -version 2>&1 | sed -n 's/.*java.home = //p')/lib/security/cacerts" lib/cacerts
+keytool -importcert -alias vpn-root -file vpn-root.pem -keystore lib/cacerts -storepass changeit -noprompt
+java -Djavax.net.ssl.trustStore=lib/cacerts -Djavax.net.ssl.trustStorePassword=changeit \
+     -Djava.library.path=lib -jar target/opencode-spring-boot-1.0.0.jar
+```
+
+> Do **not** "fix" this by disabling certificate verification — that accepts any
+> man-in-the-middle.
+
+#### A test certificate to try it with
+
+You do not need a corporate CA to check that the scripts work. `cert/` ships a throw-away
+self-signed root CA:
+
+| File | What it is |
+| --- | --- |
+| `cert/vpn-test-root.cer` | the CA certificate, DER — this is the file to hand to `setup-vpn-trust.bat` |
+| `cert/vpn-test-root.pem` | the same certificate, base64 |
+
+```bat
+setup-vpn-trust.bat cert\vpn-test-root.cer
+run.bat
+```
+
+`setup-vpn-trust.bat` copies the JDK truststore to `lib\cacerts` and adds the certificate, so
+the app keeps talking to the public internet as before and now also trusts this CA.
+
+To get a fresh CA **and** a server certificate signed by it (with the key, so you can stand up
+an HTTPS server that the app will trust), run:
+
+```bat
+make-test-cert.bat
+```
+
+It writes to `lib\certs\`:
+
+```
+vpn-test-root.p12      the CA keystore                (password: changeit)
+vpn-test-root.cer      the CA certificate, DER
+vpn-test-root.pem      the CA certificate, base64
+vpn-test-server.p12    a server certificate signed by that CA
+vpn-test-server.cer    the same server certificate, DER
+vpn-test-server.pem    the same server certificate, base64
+```
+
+Then `setup-vpn-trust.bat lib\certs\vpn-test-root.cer` trusts it, and a server using
+`vpn-test-server.pem` is accepted by the app:
+
+```bash
+openssl pkcs12 -in lib/certs/vpn-test-server.p12 -nocerts -nodes -out server.key
 ```
 
 ### 2. Build and run
@@ -376,6 +464,10 @@ tools the gateway advertises.
 ├── pom.xml                       one module, one jar
 ├── mvnw, mvnw.cmd, .mvn/         the Maven wrapper
 ├── setup.bat                     one-time setup on Windows
+├── run.bat                       start the app (Windows)
+├── setup-vpn-trust.bat           trust a VPN's TLS-inspection certificate
+├── make-test-cert.bat            mint a throw-away CA for testing the above
+├── cert/                         a ready-made test CA           (vpn-test-root.cer/.pem)
 ├── scripts/install-stt-jar.sh    installs the sherpa-onnx bindings into ~/.m2
 ├── lib/                          sherpa jar + native libraries   (gitignored)
 ├── models/                       Whisper models                  (gitignored)

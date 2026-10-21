@@ -38,3 +38,6 @@ hs_err_pid*.log
 *.pem
 *.key
 application-local.yml
+
+# ...except the throw-away test CA, which is a public certificate with no key.
+!cert/vpn-test-root.pem
