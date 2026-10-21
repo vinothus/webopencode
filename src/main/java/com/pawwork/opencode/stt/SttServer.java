@@ -1,6 +1,7 @@
 package com.pawwork.opencode.stt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pawwork.opencode.config.TrustStoreSupport;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -42,6 +43,10 @@ public final class SttServer {
     }
 
     public static void main(String[] args) throws Exception {
+        // A VPN that re-signs HTTPS breaks the model downloads; the truststore has to be set
+        // before the first HTTP client is built.
+        TrustStoreSupport.configure();
+
         SttProperties properties = new SttProperties();
         properties.setModelsDir(System.getProperty("stt.models.dir", properties.getModelsDir()));
         properties.setThreads(Integer.getInteger("stt.threads", properties.getThreads()));
