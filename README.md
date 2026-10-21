@@ -191,6 +191,31 @@ Then `setup-vpn-trust.bat lib\certs\vpn-test-root.cer` trusts it, and a server u
 openssl pkcs12 -in lib/certs/vpn-test-server.p12 -nocerts -nodes -out server.key
 ```
 
+#### The Windows certificate store is a different thing
+
+The JVM **never** reads the Windows certificate store — it has its own truststore, which is
+what `setup-vpn-trust.bat` fills in. The Windows store is only worth touching when something
+outside Java has to trust the certificate as well (a browser talking to a local HTTPS server,
+for example):
+
+```bat
+install-cert-windows.bat cert\vpn-test-root.cer                    :: current user, no admin
+install-cert-windows.bat cert\vpn-test-root.cer -LocalMachine      :: every user, admin
+```
+
+By hand that is the same as double-clicking the `.cer` → *Install Certificate…* → *Trusted Root
+Certification Authorities*, or:
+
+```bat
+certutil -user -addstore -f Root cert\vpn-test-root.cer
+```
+
+Windows asks you to confirm installing a root certificate — click *Yes*. To take it out again:
+
+```bat
+certutil -delstore Root "OpenCode Test VPN Root CA"
+```
+
 ### 2. Build and run
 
 ```bash
@@ -467,6 +492,7 @@ tools the gateway advertises.
 ├── run.bat                       start the app (Windows)
 ├── setup-vpn-trust.bat           trust a VPN's TLS-inspection certificate
 ├── make-test-cert.bat            mint a throw-away CA for testing the above
+├── install-cert-windows.bat      put a certificate in the Windows cert store
 ├── cert/                         a ready-made test CA           (vpn-test-root.cer/.pem)
 ├── scripts/install-stt-jar.sh    installs the sherpa-onnx bindings into ~/.m2
 ├── lib/                          sherpa jar + native libraries   (gitignored)
