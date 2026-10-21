@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.pawwork.opencode</groupId>
+  <artifactId>opencode-spring-boot</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>OpenCode Spring Boot</name>
+  <description>Single project: an OpenAI-compatible client for the OpenCode gateway, a coding-tool
+    loop, a voice-chat web app and the local sherpa-onnx speech-to-text engine, in one jar.</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <springdoc.version>2.8.17</springdoc.version>
+    <!-- The sherpa-onnx JVM bindings are not published to Maven Central. They are downloaded
+         once into ./lib and installed into the local repository with:
+           ./mvnw install:install-file -Dfile=lib/sherpa-onnx-jvm.jar \
+             -DgroupId=com.k2fsa.sherpa.onnx -DartifactId=sherpa-onnx -Dversion=1.12.1 -Dpackaging=jar
+         See ./scripts/install-stt-jar.sh. -->
+    <sherpa.onnx.version>1.12.1</sherpa.onnx.version>
+    <opencode.test.live>false</opencode.test.live>
+  </properties>
+
+  <dependencies>
+    <!-- the OpenCode gateway client + tool loop -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+    </dependency>
+
+    <!-- the web app -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+
+    <!-- the local speech-to-text engine -->
+    <!-- Installed into the local repository by scripts/install-stt-jar.sh; see the note
+         in <properties>. The native libraries (libsherpa-onnx-jni.so, libonnxruntime.so)
+         are loaded from ./lib at runtime via -Djava.library.path. -->
+    <dependency>
+      <groupId>com.k2fsa.sherpa.onnx</groupId>
+      <artifactId>sherpa-onnx</artifactId>
+      <version>${sherpa.onnx.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- Optional: only used to publish OpenAI-named schemas in a springdoc document. -->
+    <dependency>
+      <groupId>io.swagger.core.v3</groupId>
+      <artifactId>swagger-annotations-jakarta</artifactId>
+      <version>2.2.47</version>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!-- The native sherpa-onnx libraries are not redistributable inside the jar;
+               they live in ./lib and are picked up through java.library.path. -->
+          <jvmArguments>-Djava.library.path=lib</jvmArguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- The tests talk to the network only when explicitly enabled. -->
+          <systemPropertyVariables>
+            <opencode.test.live>${opencode.test.live}</opencode.test.live>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

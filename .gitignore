@@ -2,6 +2,15 @@
 target/
 *.class
 
+# The sherpa-onnx JVM bindings and the native libraries. Downloaded, not committed.
+# See scripts/install-stt-jar.sh and the README.
+lib/
+
+# Whisper models are several hundred MB each and are installed at runtime
+# through /api/models/download (or copied in by hand). Never commit them.
+models/
+sherpa-onnx-whisper-*/
+
 # Runtime / editor / OS noise
 app.log
 app.pid
