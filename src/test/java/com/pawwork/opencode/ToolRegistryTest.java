@@ -100,6 +100,69 @@ class ToolRegistryTest {
         assertThat(execution.getResult()).contains("[truncated at 100 chars]");
     }
 
+    /**
+     * Truncation must not cut through a JSON string. The old implementation sliced the payload at
+     * an arbitrary character, so a quoted value came back half-written and the document no longer
+     * parsed — which is what a truncated shell result looked like to the model.
+     */
+    @Test
+    void truncationKeepsJsonValidAndPreservesShortQuotedFields() throws Exception {
+        ToolRegistry registry = registry(400);
+        registry.register(new ToolHandler() {
+            @Override
+            public String name() {
+                return "big_json";
+            }
+
+            @Override
+            public String execute(com.fasterxml.jackson.databind.JsonNode arguments) {
+                com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+                out.put("command", "echo \"hello world\"");
+                out.put("output", "start " + "x".repeat(5000));
+                return out.toString();
+            }
+        });
+
+        ToolExecution execution = registry.executeDetailed("big_json", "{}");
+        com.fasterxml.jackson.databind.JsonNode parsed = mapper.readTree(execution.getResult());
+
+        assertThat(execution.getResult()).hasSizeLessThanOrEqualTo(400);
+        assertThat(parsed.path("truncated").asBoolean()).isTrue();
+        assertThat(parsed.path("command").asText()).isEqualTo("echo \"hello world\"");
+        assertThat(parsed.path("output").asText()).startsWith("start ");
+    }
+
+    /** grep-shaped results are long because of many entries, not one giant string. */
+    @Test
+    void truncationDropsTrailingArrayEntriesInsteadOfBreakingTheDocument() throws Exception {
+        ToolRegistry registry = registry(400);
+        registry.register(new ToolHandler() {
+            @Override
+            public String name() {
+                return "many";
+            }
+
+            @Override
+            public String execute(com.fasterxml.jackson.databind.JsonNode arguments) {
+                com.fasterxml.jackson.databind.node.ObjectNode out = mapper.createObjectNode();
+                com.fasterxml.jackson.databind.node.ArrayNode matches = out.putArray("matches");
+                for (int i = 0; i < 200; i++) {
+                    matches.addObject().put("file", "a/b/c.txt").put("line", i);
+                }
+                return out.toString();
+            }
+        });
+
+        ToolExecution execution = registry.executeDetailed("many", "{}");
+        com.fasterxml.jackson.databind.JsonNode parsed = mapper.readTree(execution.getResult());
+
+        assertThat(execution.getResult()).hasSizeLessThanOrEqualTo(400);
+        assertThat(parsed.path("truncated").asBoolean()).isTrue();
+        assertThat(parsed.path("matches").isArray()).isTrue();
+        assertThat(parsed.path("matches")).isNotEmpty();
+        assertThat(parsed.path("matches").size()).isLessThan(200);
+    }
+
     @Test
     void explicitFailureMarkersCountAsFailures() {
         ToolRegistry registry = registry(4000);

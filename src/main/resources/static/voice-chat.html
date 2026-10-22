@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f1117">
-<title>Voice Chat — Big Pickle (OpenCode Zen)</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>OpenCode Chat</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -19,397 +21,773 @@
     --ok: #22c55e;
     --radius: 14px;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, sans-serif;
     background: radial-gradient(1200px 600px at 80% -10%, #1b2440 0%, var(--bg) 55%);
     color: var(--text);
     height: 100vh;
-    height: 100dvh;              /* mobile: don't hide the footer behind browser chrome */
-    display: flex; flex-direction: column;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
     overscroll-behavior: none;
+    overflow: hidden;
   }
+
+  /* Header */
   header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 14px 20px;
-    background: rgba(23,26,35,.85);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    background: rgba(23,26,35,.92);
     border-bottom: 1px solid #262b3b;
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 10;
   }
-  header .logo { font-size: 22px; }
-  header h1 { font-size: 17px; font-weight: 600; }
-  header .sub { font-size: 12px; color: var(--muted); }
-  header .spacer { flex: 1; }
+  header .logo { font-size: 20px; flex-shrink: 0; }
+  header .title-wrap { flex: 1; min-width: 0; }
+  header h1 { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pill {
-    font-size: 11px; padding: 4px 10px; border-radius: 999px;
-    background: var(--panel-2); color: var(--muted); border: 1px solid #2b3147;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+    border: 1px solid #2b3147;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .pill.on { color: var(--ok); border-color: #14532d; }
   .pill.bad { color: var(--danger); border-color: #7f1d1d; }
 
-  #chat {
-    flex: 1; overflow-y: auto; padding: 22px 18px 10px;
-    display: flex; flex-direction: column; gap: 12px;
-    scroll-behavior: smooth;
+  /* Tabs */
+  .tab-nav {
+    display: flex;
+    background: rgba(23,26,35,.92);
+    border-bottom: 1px solid #262b3b;
+    padding: 0 8px;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
-  .msg { max-width: 76%; display: flex; flex-direction: column; gap: 4px; }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex: 1;
+    min-width: 70px;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .2s;
+    white-space: nowrap;
+  }
+  .tab-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+  .tab-btn:active { opacity: 0.7; }
+
+  /* Tab Content */
+  .tab-content {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .tab-content.active {
+    display: flex;
+  }
+
+  /* Chat Tab */
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .msg { max-width: 85%; display: flex; flex-direction: column; gap: 4px; animation: slideUp .2s ease-out; }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   .msg .who { font-size: 11px; color: var(--muted); padding: 0 6px; }
   .msg .bubble {
-    padding: 11px 15px; border-radius: var(--radius);
-    line-height: 1.5; font-size: 15px; white-space: pre-wrap; word-break: break-word;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    line-height: 1.6;
+    font-size: 15px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
   .msg.user { align-self: flex-end; align-items: flex-end; }
-  .msg.user .bubble { background: var(--user); border-bottom-right-radius: 4px; }
+  .msg.user .bubble { background: var(--user); border-bottom-right-radius: 6px; }
   .msg.assistant { align-self: flex-start; }
-  .msg.assistant .bubble { background: var(--assistant); border-bottom-left-radius: 4px; }
-  .msg.assistant .bubble .cursor { display: inline-block; width: 8px; background: var(--accent);
-    animation: blink 1s steps(2) infinite; border-radius: 2px; }
+  .msg.assistant .bubble { background: var(--assistant); border-bottom-left-radius: 6px; }
+  .msg.assistant .bubble .cursor { display: inline-block; width: 8px; height: 16px; background: var(--accent); animation: blink 1s steps(2) infinite; vertical-align: middle; margin-left: 2px; }
   @keyframes blink { 50% { opacity: 0; } }
   .msg .meta { font-size: 10px; color: var(--muted); padding: 0 6px; }
 
   #live {
-    align-self: center; font-size: 13px; color: var(--accent);
-    min-height: 18px; font-style: italic; opacity: .9; padding: 2px 8px;
+    align-self: center;
+    font-size: 12px;
+    color: var(--accent);
+    min-height: 16px;
+    font-style: italic;
+    padding: 4px 12px;
+    text-align: center;
+    max-width: 90%;
   }
 
   .notice {
-    align-self: center; max-width: 560px; text-align: center;
-    background: #2a2416; border: 1px solid #7c5e14; color: #fcd34d;
-    font-size: 12.5px; padding: 10px 16px; border-radius: 10px; line-height: 1.5;
+    align-self: center;
+    max-width: 90%;
+    text-align: center;
+    background: #2a2416;
+    border: 1px solid #7c5e14;
+    color: #fcd34d;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    line-height: 1.5;
+    margin: 0 12px;
   }
   .notice.hidden { display: none; }
 
-  /* ---- model manager panel ---- */
-  #modelsBtn.on { border-color: var(--accent); color: var(--accent); }
-  .mpanel {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100vw);
-    background: #12151d; border-left: 1px solid #262b3b; z-index: 50;
-    transform: translateX(102%); transition: transform .22s ease;
-    display: flex; flex-direction: column; box-shadow: -18px 0 40px rgba(0,0,0,.5);
+  /* Chat Footer */
+  .chat-footer {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(23,26,35,.92);
+    border-top: 1px solid #262b3b;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
-  .mpanel.open { transform: none; }
-  .mpanel header {
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 16px; border-bottom: 1px solid #262b3b;
+  .chat-controls {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
   }
-  .mpanel header b { font-size: 14px; }
-  .mpanel header .x {
-    margin-left: auto; cursor: pointer; border: 1px solid #2c3346;
-    background: #1a1e29; color: #cbd5e1; border-radius: 8px; padding: 5px 10px; font-size: 13px;
+  .input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    background: var(--panel-2);
+    border: 1px solid #2b3147;
+    border-radius: 24px;
+    padding: 6px 6px 6px 14px;
+    gap: 6px;
+    min-width: 0;
   }
-  .mpanel .body { padding: 14px 16px; overflow-y: auto; flex: 1; }
-  .mpanel .row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-  .mpanel .row .name { font-weight: 600; font-size: 13.5px; }
-  .mpanel .row .sz { color: #8695ad; font-size: 12px; margin-left: auto; }
+  .input-wrap:focus-within { border-color: var(--accent); }
+  #text {
+    flex: 1;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    outline: none;
+    font-size: 16px;
+    padding: 6px 0;
+    resize: none;
+    max-height: 100px;
+    font-family: inherit;
+    line-height: 1.5;
+  }
+  #text::placeholder { color: var(--muted); }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  .icon-btn:active { background: rgba(255,255,255,0.1); }
+  .icon-btn.active { color: var(--accent); }
+  #micBtn {
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
+    color: #fff;
+  }
+  #micBtn.listening {
+    background: linear-gradient(145deg, #ef4444, #b91c1c);
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239,68,68,.55); }
+    70% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  }
+  #sendBtn {
+    background: var(--user);
+    color: #fff;
+  }
+  #sendBtn:disabled { opacity: 0.4; }
+
+  /* Voice row (STT language + engine, spoken replies, stop) */
+  .voice-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 0;
+  }
+  .voice-row::-webkit-scrollbar { display: none; }
+  .voice-row select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #2b3147;
+    border-radius: 10px;
+    padding: 7px 8px;
+    font-size: 12px;
+    max-width: 165px;
+    flex-shrink: 0;
+    font-family: inherit;
+  }
+  .voice-row select:focus { outline: none; border-color: var(--accent); }
+  .voice-row .small-btn { flex-shrink: 0; }
+  .small-btn.toggled { border-color: var(--accent); color: var(--accent); }
+  #meter { display: flex; gap: 3px; align-items: flex-end; height: 26px; flex-shrink: 0; }
+  #meter .bar { width: 4px; background: #2b3147; border-radius: 2px; height: 4px; transition: height .08s linear, background .2s; }
+  #meter.live .bar { background: var(--accent); }
+
+  .quick-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 0;
+  }
+  .quick-row::-webkit-scrollbar { display: none; }
+  .chip {
+    padding: 6px 10px;
+    background: var(--panel-2);
+    border: 1px solid #2b3147;
+    border-radius: 16px;
+    color: var(--text);
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .chip:active { background: var(--assistant); }
+
+  /* Models Tab */
+  .models-tab {
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid #2b3147;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .card-sub {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Settings Tab */
+  .settings-tab {
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Forms */
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .form-label {
+    font-size: 13px;
+    color: var(--text);
+  }
+  .form-input, .form-select {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid #2b3147;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--user);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:active { opacity: 0.8; }
+  .btn.secondary {
+    background: var(--panel-2);
+    border: 1px solid #2b3147;
+  }
+  .model-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 1px solid #2b3147;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .model-info { flex: 1; min-width: 0; }
+  .model-name { font-weight: 500; font-size: 14px; overflow-wrap: anywhere; }
+  .model-meta { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+  .model-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .small-btn {
+    padding: 6px 10px;
+    background: var(--panel);
+    border: 1px solid #2b3147;
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  /* Speech-model cards */
   .mcard {
-    border: 1px solid #262b3b; border-radius: 10px; padding: 12px;
-    margin-bottom: 10px; background: #161a24;
+    border: 1px solid #262b3b;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #161a24;
   }
   .mcard.installed { border-color: #1f5136; background: #12201a; }
-  .mcard .meta { color: #8695ad; font-size: 12px; margin: 4px 0 10px; }
-  .mcard .actions { display: flex; gap: 8px; align-items: center; }
+  .mcard .row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .mcard .name { font-weight: 600; font-size: 13.5px; }
+  .mcard .sz { color: var(--muted); font-size: 12px; margin-left: auto; text-align: right; }
+  .mcard .meta { color: var(--muted); font-size: 12px; margin: 4px 0 10px; }
+  .mcard .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .mcard button {
-    cursor: pointer; border-radius: 8px; padding: 6px 12px; font-size: 12.5px;
-    border: 1px solid #2c3346; background: #1a1e29; color: #e6ebf5;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    border: 1px solid #2c3346;
+    background: #1a1e29;
+    color: var(--text);
   }
   .mcard button.pri { background: var(--user); border-color: var(--user); color: #fff; }
   .mcard button.danger { border-color: #7f1d1d; color: #fca5a5; }
   .mcard button:disabled { opacity: .45; cursor: not-allowed; }
   .mbar { height: 7px; border-radius: 4px; background: #232838; overflow: hidden; margin: 8px 0 4px; }
   .mbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#2563eb,#22d3ee); }
-  .mpanel .src { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-  .mpanel .src select {
-    flex: 1; background: #1a1e29; color: #e6ebf5; border: 1px solid #2c3346;
-    border-radius: 8px; padding: 8px; font-size: 13px;
-  }
-  .mpanel .note { color: #8695ad; font-size: 12px; line-height: 1.5; margin-top: 6px; }
-  .mpanel .err { color: #fca5a5; font-size: 12.5px; margin-top: 8px; }
-  @media (max-width: 720px) {
-    .mpanel { width: 100vw; }
-  }
-
-  footer { padding: 12px 18px 18px; background: rgba(23,26,35,.85); border-top: 1px solid #262b3b; }
-  .controls { display: flex; gap: 10px; align-items: center; }
-
-  #micBtn {
-    width: 54px; height: 54px; border-radius: 50%; border: none; cursor: pointer;
-    background: linear-gradient(145deg, #2563eb, #1d4ed8); color: #fff; font-size: 22px;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform .15s, background .2s; flex-shrink: 0; position: relative;
-  }
-  #micBtn:hover { transform: scale(1.06); }
-  #micBtn.listening { background: linear-gradient(145deg, #ef4444, #b91c1c); animation: pulse 1.2s infinite; }
-  #micBtn:disabled { opacity: .4; cursor: not-allowed; }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(239,68,68,.55); }
-    70% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
-    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
-  }
-
-  #meter { display: flex; gap: 3px; align-items: flex-end; height: 30px; flex-shrink: 0; }
-  #meter .bar { width: 4px; background: #2b3147; border-radius: 2px; height: 4px; transition: height .08s linear, background .2s; }
-  #meter.live .bar { background: var(--accent); }
-
-  #text { flex: 1; background: var(--panel-2); color: var(--text); border: 1px solid #2b3147;
-    border-radius: 12px; padding: 14px 16px; font-size: 15px; outline: none; }
-  #text:focus { border-color: var(--user); }
-  #sendBtn, .tbtn {
-    border: 1px solid #2b3147; background: var(--panel-2); color: var(--text);
-    border-radius: 12px; padding: 13px 16px; cursor: pointer; font-size: 15px; transition: background .15s;
-  }
-  #sendBtn { background: var(--user); border-color: var(--user); }
-  #sendBtn:hover, .tbtn:hover { filter: brightness(1.15); }
-  #sendBtn:disabled, .tbtn:disabled { opacity: .45; cursor: not-allowed; }
-  .tbtn.toggled { border-color: var(--accent); color: var(--accent); }
-
-  #langSel {
-    background: var(--panel-2); color: var(--text); border: 1px solid #2b3147;
-    border-radius: 12px; padding: 12px 10px; font-size: 14px; cursor: pointer; outline: none;
-    max-width: 150px;
-  }
-  #langSel:focus { border-color: var(--user); }
-  #modelSel {
-    background: var(--panel-2); color: var(--text); border: 1px solid #2b3147;
-    border-radius: 12px; padding: 12px 10px; font-size: 14px; cursor: pointer; outline: none;
-    max-width: 190px;
-  }
-  #modelSel:focus { border-color: var(--user); }
-
-  .statusbar { display: flex; gap: 14px; font-size: 11px; color: var(--muted); padding: 8px 4px 0; flex-wrap: wrap; }
+  .err { color: #fca5a5; font-size: 12.5px; margin-top: 8px; }
+  .statusbar { display: flex; gap: 14px; font-size: 11px; color: var(--muted); padding: 10px 2px 0; flex-wrap: wrap; }
   .statusbar b { color: var(--text); font-weight: 500; }
 
-  /* ------------------------------------------------------- tool approval */
-  #approval {
-    position: fixed; inset: 0; z-index: 50;
-    display: none; align-items: center; justify-content: center;
-    background: rgba(6,8,14,.72); backdrop-filter: blur(3px); padding: 18px;
+  /* Modal */
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
   }
-  #approval.show { display: flex; }
-  #approval .card {
-    width: 100%; max-width: 540px; background: var(--panel);
-    border: 1px solid #2b3147; border-radius: var(--radius); overflow: hidden;
-    box-shadow: 0 24px 60px rgba(0,0,0,.55); animation: pop .14s ease-out;
+  .modal.active { display: flex; }
+  .modal-content {
+    width: 100%;
+    max-width: 500px;
+    background: var(--panel);
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUpModal .3s ease-out;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
   }
-  @keyframes pop { from { transform: scale(.96); opacity: 0 } to { transform: scale(1); opacity: 1 } }
-  #approval .head {
-    padding: 14px 16px; border-bottom: 1px solid #262b3b; font-weight: 600; font-size: 15px;
-    display: flex; align-items: center; gap: 8px;
+  @keyframes slideUpModal {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
   }
-  #approval .body { padding: 14px 16px; }
-  #approval .tool { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-  #approval .tool b { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  #approval pre {
-    margin: 0; padding: 12px; background: #0c0e14; border: 1px solid #262b3b; border-radius: 10px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.5;
-    color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 40vh; overflow: auto;
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid #262b3b;
   }
-  #approval .warn { margin-top: 10px; font-size: 12px; color: #fbbf24; }
-  #approval .foot { padding: 12px 16px 16px; display: flex; gap: 10px; justify-content: flex-end; }
-  #approval .foot button {
-    padding: 10px 18px; border-radius: 10px; border: 1px solid #2b3147; font-size: 14px;
-    cursor: pointer; font-weight: 600;
-  }
-  #approval .deny { background: var(--panel-2); color: var(--text); }
-  #approval .allow { background: var(--ok); color: #04240f; border-color: #14532d; }
-  #approval .allow:hover { filter: brightness(1.08); }
-  #approval .deny:hover { border-color: #3a4159; }
+  .modal-title { font-size: 17px; font-weight: 600; }
+  .modal-body { padding: 16px; }
 
-  /* ---------------------------------------------------------------- mobile */
-  @media (hover: none) {          /* touch: bigger hit targets, no hover zoom */
-    #micBtn:hover { transform: none; }
-    .tbtn, #sendBtn { -webkit-tap-highlight-color: transparent; }
+  /* Tool Approval Modal */
+  #approvalModal .modal-content {
+    max-width: 400px;
+    border-radius: 16px;
+    margin: 20px;
+  }
+  #approvalArgs {
+    max-height: 40vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
-  @media (max-width: 720px) {
-    header { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
-    header > div { min-width: 0; }
-    header h1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    header .sub { display: none; }                    /* reclaim the header line */
-    header .spacer { display: none; }                 /* let the pills wrap naturally */
-    .pill { font-size: 10px; padding: 3px 8px; }
-    #chat { padding: 14px 12px 6px; gap: 10px; }
-    .msg { max-width: 88%; }                          /* more room for text */
-    .msg .bubble { font-size: 15px; padding: 10px 13px; }
-    .notice { max-width: 100%; font-size: 12px; }
-
-    footer {
-      padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
+  @media (min-width: 640px) {
+    .modal { align-items: center; }
+    .modal-content {
+      border-radius: 16px;
+      max-height: 80vh;
     }
-    .controls {
-      display: grid;                                  /* reflow: text row, then controls */
-      grid-template-columns: 1fr 1fr 1fr 1fr;
-      grid-template-areas:
-        "input input input input"
-        "mic   lang  model tools"
-        "meter voice stop  new"
-        "send  send  send  send";
-      gap: 8px;
-      align-items: center;
-    }
-    #text { grid-area: input; font-size: 16px; padding: 12px 14px; }  /* 16px stops iOS zoom-on-focus */
-    #micBtn { grid-area: mic; width: 52px; height: 52px; align-self: center; }
-    #meter { grid-area: meter; align-self: center; height: 22px; overflow: hidden; }
-    #langSel { grid-area: lang; }
-    #modelSel { grid-area: model; }
-    #toolModeSel { grid-area: tools; }
-    #sendBtn { grid-area: send; }
-    #voiceBtn { grid-area: voice; }
-    #stopBtn { grid-area: stop; }
-    #newBtn { grid-area: new; }
-    #langSel, #modelSel, #toolModeSel { max-width: none; width: 100%; font-size: 13px; padding: 10px 8px; }
-    .tbtn, #sendBtn { padding: 11px 8px; font-size: 14px; }
-
-    .statusbar { gap: 10px; font-size: 10px; padding: 6px 2px 0; }
-    .statusbar span:nth-child(1) { display: none; }   /* session id: not useful on a phone */
+    .chat-footer { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+    #chat { padding: 20px 16px 16px; }
+    .msg { max-width: 70%; }
+    .models-tab, .settings-tab { max-width: 720px; margin: 0 auto; width: 100%; }
   }
-
-  @media (max-width: 380px) {                          /* very small phones */
-    #micBtn { width: 46px; height: 46px; font-size: 19px; }
-    #meter { display: none; }                          /* meter is the first thing to go */
-    .controls {
-      grid-template-columns: 1fr 1fr 1fr;
-      grid-template-areas:
-        "input input input"
-        "mic   lang  model"
-        "tools tools tools"
-        "voice stop  send";
-    }
-    #newBtn { display: none; }
+  @media (max-width: 380px) {
+    #meter { display: none; }
+    .voice-row select { max-width: 140px; }
   }
-  ::-webkit-scrollbar { width: 9px; }
-  ::-webkit-scrollbar-thumb { background: #2b3147; border-radius: 6px; }
 </style>
 </head>
 <body>
 
 <header>
   <span class="logo">🦜</span>
-  <div>
-    <h1>Voice Chat — Big Pickle</h1>
-    <div class="sub">Speech → text on this server (Whisper · English + தமிழ்) · text ⇄ LLM via OpenCode Zen</div>
+  <div class="title-wrap">
+    <h1>OpenCode Chat</h1>
+    <div class="sub">Voice · tools · streaming</div>
   </div>
-  <div class="spacer"></div>
-  <span class="pill" id="sttPill">STT: checking…</span>
-  <span class="pill" id="ttsPill">TTS: on</span>
+  <span class="pill" id="sttPill">STT: …</span>
+  <span class="pill" id="ttsPill">TTS: …</span>
 </header>
 
-<div id="chat">
-  <div class="notice" id="notice"></div>
-</div>
-<div id="live"></div>
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+  <button class="tab-btn" data-tab="models">🤖 Models</button>
+  <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+</nav>
 
-<footer>
-  <div class="controls">
-    <button id="micBtn" title="Record and transcribe on the server (English / Tamil)">🎤</button>
-    <div id="meter"></div>
-    <select id="langSel" title="Language for speech-to-text">
-      <option value="auto">🌐 Auto (en / ta)</option>
-      <option value="en">🇬🇧 English</option>
-      <option value="ta">🇮🇳 தமிழ்</option>
-    </select>
-    <select id="modelSel" title="Speech-to-text engine: the browser's built-in recognizer, or a local Whisper model">
-      <option value="browser">🌐 Browser (Google, free)</option>
-      <option value="small">⚡ Small (fastest)</option>
-      <option value="medium">⚖️ Medium (balanced)</option>
-      <option value="large-v3">🎯 Large v3 (best quality)</option>
-    </select>
-    <select id="toolModeSel" title="What the AI may do with tools: run them freely, ask you first, or disable them">
-      <option value="ask">🛠️ Tools: ask first</option>
-      <option value="auto">🛠️ Tools: auto-run</option>
-      <option value="off">🛠️ Tools: off</option>
-    </select>
-    <input id="text" type="text" placeholder="Type a message, or press the mic and speak…" autocomplete="off">
-    <button id="sendBtn" title="Send">➤</button>
-    <button class="tbtn" id="voiceBtn" title="Toggle spoken replies">🔊</button>
-    <button class="tbtn" id="stopBtn" title="Stop speaking / stop recording">⏹</button>
-    <button class="tbtn" id="newBtn" title="New conversation">🗑</button>
-    <button class="tbtn" id="modelsBtn" title="Manage on-device speech models">📦</button>
+<!-- Chat Tab -->
+<div class="tab-content active" id="tab-chat">
+  <div id="chat">
+    <div class="notice hidden" id="notice"></div>
   </div>
-  <div class="mpanel" id="mpanel" aria-hidden="true">
-    <header>
-      <b>📦 Speech models</b>
-      <span class="pill" id="mdirPill" style="font-size:11px">…</span>
-      <span class="x" id="mclose">close ✕</span>
-    </header>
-    <div class="body">
-      <div class="src">
-        <label for="msrc" style="font-size:12.5px;color:#8695ad">Download from</label>
-        <select id="msrc"></select>
+  <div id="live"></div>
+  <div class="chat-footer">
+    <div class="voice-row">
+      <div id="meter" title="Input level"></div>
+      <select id="langSel" title="Language for speech-to-text">
+        <option value="auto">🌐 Auto (en / ta)</option>
+        <option value="en">🇬🇧 English</option>
+        <option value="ta">🇮🇳 தமிழ்</option>
+      </select>
+      <select id="modelSel" title="Speech-to-text engine">
+        <option value="browser">🌐 Browser (Google)</option>
+        <option value="small">⚡ Small (fastest)</option>
+        <option value="medium">⚖️ Medium (balanced)</option>
+        <option value="large-v3">🎯 Large v3 (best)</option>
+      </select>
+      <button class="small-btn" id="voiceBtn" title="Toggle spoken replies">🔊 Speak</button>
+      <button class="small-btn" id="stopBtn" title="Stop speaking / stop recording">⏹</button>
+    </div>
+    <div class="chat-controls">
+      <button class="icon-btn" id="micBtn" title="Record and transcribe on the server">🎤</button>
+      <div class="input-wrap">
+        <textarea id="text" rows="1" placeholder="Type a message, or press the mic and speak…" autocomplete="off"></textarea>
+        <button class="icon-btn" id="sendBtn" title="Send">➤</button>
+      </div>
+    </div>
+    <div class="quick-row">
+      <button class="chip" onclick="quickSend('Explain this code')">💡 Explain</button>
+      <button class="chip" onclick="quickSend('Write tests')">🧪 Tests</button>
+      <button class="chip" onclick="quickSend('Debug this issue')">🐛 Debug</button>
+      <button class="chip" onclick="quickSend('Optimize code')">⚡ Optimize</button>
+    </div>
+  </div>
+</div>
+
+<!-- Models Tab -->
+<div class="tab-content" id="tab-models">
+  <div class="models-tab">
+    <div class="section-title">
+      <span>Chat Model</span>
+      <button class="small-btn" onclick="openAddModelModal()">+ Add Model</button>
+    </div>
+
+    <div class="card">
+      <div class="form-row">
+        <label class="form-label">Model</label>
+        <select class="form-select" id="modelDropdown"></select>
+      </div>
+      <div class="card-sub" id="modelInfo">Default: big-pickle</div>
+    </div>
+
+    <div class="section-title" style="margin-top: 24px;">Your Models</div>
+    <div id="customModelsList"></div>
+
+    <div class="section-title" style="margin-top: 24px;">
+      <span>Speech Models</span>
+      <span class="pill" id="mdirPill">…</span>
+    </div>
+    <div class="card">
+      <div class="form-row">
+        <label class="form-label">Download from</label>
+        <select class="form-select" id="msrc"></select>
       </div>
       <div id="mlist"></div>
-      <div class="note" id="mnote"></div>
+      <div class="card-sub" id="mnote"></div>
       <div class="err" id="merr"></div>
     </div>
   </div>
+</div>
 
-  <div class="statusbar">
-    <span>session: <b id="sessionId"></b></span>
-    <span>model: <b>big-pickle</b></span>
-    <span>mic: <b id="micStatus">idle</b></span>
-    <span>last transcript: <b id="sttStatus">—</b></span>
-    <span>tools: <b id="toolsStatus">ask</b></span>
-    <span id="hint"></span>
+<!-- Settings Tab -->
+<div class="tab-content" id="tab-settings">
+  <div class="settings-tab">
+    <div class="section-title">Settings</div>
+
+    <div class="card">
+      <div class="card-title">Tool Permissions</div>
+      <div class="form-row">
+        <label class="form-label">Tool Mode</label>
+        <select class="form-select" id="toolModeSel">
+          <option value="ask">Ask before running tools</option>
+          <option value="auto">Auto-run tools</option>
+          <option value="off">Disable tools</option>
+        </select>
+      </div>
+      <div class="card-sub">Shell commands still ask for approval in auto mode.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Voice</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
+        <span>Spoken replies</span>
+        <button class="small-btn" id="voiceToggle">On</button>
+      </div>
+      <button class="btn secondary" onclick="showTab('models')">📦 Manage Speech Models</button>
+      <div class="statusbar">
+        <span>mic: <b id="micStatus">idle</b></span>
+        <span>last transcript: <b id="sttStatus">—</b></span>
+        <span id="hint"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Session</div>
+      <button class="btn secondary" onclick="newChat()">🗑 New Conversation</button>
+      <div class="card-sub" style="margin-top: 8px; text-align: center;">Session: <span id="sessionId"></span></div>
+    </div>
   </div>
-</footer>
+</div>
+
+<!-- Add Model Modal -->
+<div class="modal" id="addModelModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">Add Custom Model</div>
+      <button class="icon-btn" onclick="closeAddModelModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Provider</label>
+        <select class="form-select" id="customProvider">
+          <option value="custom">Custom (OpenAI-compatible)</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="groq">Groq</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Model Name/ID</label>
+        <input class="form-input" id="customModelName" placeholder="e.g., llama-3.1-70b">
+      </div>
+      <div class="form-row">
+        <label class="form-label">API Key (if required)</label>
+        <input class="form-input" type="password" id="customApiKey" placeholder="sk-...">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Base URL (optional)</label>
+        <input class="form-input" id="customBaseUrl" placeholder="https://api.example.com/v1">
+      </div>
+      <button class="btn" onclick="saveCustomModel()">Save Model</button>
+    </div>
+  </div>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal" id="apiKeyModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">API Key Required</div>
+      <button class="icon-btn" onclick="closeApiKeyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="card-sub" style="margin-bottom: 12px;">The model <strong id="apiKeyModelName"></strong> requires an API key.</p>
+      <div class="form-row">
+        <label class="form-label">API Key</label>
+        <input class="form-input" type="password" id="apiKeyInput" placeholder="Enter your API key">
+      </div>
+      <button class="btn" onclick="saveApiKey()">Save &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tool Approval Modal -->
+<div class="modal" id="approvalModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">🔧 Tool Permission</div>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 10px;">AI wants to run: <strong id="approvalToolName"></strong></p>
+      <pre style="background: var(--bg); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; margin-bottom: 12px;" id="approvalArgs"></pre>
+      <p class="card-sub" id="approvalWarn"></p>
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button class="btn secondary" style="flex: 1;" onclick="denyTool()">Deny</button>
+        <button class="btn" style="flex: 1;" onclick="allowTool()">Allow</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 "use strict";
-/* ------------------------------------------------------------------ state */
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 const chatEl = $("chat"), liveEl = $("live"), noticeEl = $("notice");
 
-const MAX_RECORD_MS = 30000;      // auto-stop a very long recording
-const MIN_RECORD_MS = 400;        // ignore accidental taps
-const TARGET_RATE = 16000;        // preferred capture rate (the server resamples anyway)
+const MAX_RECORD_MS = 30000;
+const MIN_RECORD_MS = 400;
+const TARGET_RATE = 16000;
 
 const state = {
-  sessionId: localStorage.getItem("vc.sessionId") || ("web-" + Math.random().toString(36).slice(2, 12)),
-  busy: false,           // a chat turn is in flight
-  listening: false,      // recording
-  sttBusy: false,        // a transcription is in flight
-  voiceOn: localStorage.getItem("vc.voiceOn") !== "off",
+  sessionId: localStorage.getItem("oc.sessionId") || ("sess_" + Math.random().toString(36).slice(2, 12)),
+  busy: false,
+  voiceOn: localStorage.getItem("oc.voiceOn") !== "off",
+  toolMode: localStorage.getItem("oc.toolMode") || "ask",
+  selectedModel: localStorage.getItem("oc.model") || "big-pickle",
+  customModels: JSON.parse(localStorage.getItem("oc.customModels") || "[]"),
+  apiKeys: JSON.parse(localStorage.getItem("oc.apiKeys") || "{}"),
+  pendingApproval: null,
+
+  // speech
   language: localStorage.getItem("vc.lang") || "auto",
-  model: localStorage.getItem("vc.model") || "medium",
-  toolMode: localStorage.getItem("vc.tools") || "ask",
-  micStream: null,       // WebRTC MediaStream (kept warm across turns)
+  sttModel: localStorage.getItem("vc.model") || "medium",
+  listening: false,
+  sttBusy: false,
+  micStream: null,
   audioCtx: null,
   analyser: null,
   meterData: null,
-  processor: null,     // PCM tap (ScriptProcessorNode) active while recording
-  pcmChunks: [],       // Float32Array blocks of raw mic samples
+  processor: null,
+  pcmChunks: [],
   recordStartedAt: 0,
   autoStopTimer: null,
-  sttReady: false
+  sttReady: false,
+  recognizer: null,
+  browserFinal: "",
+  browserInterim: "",
+  browserError: null
 };
-localStorage.setItem("vc.sessionId", state.sessionId);
+
+localStorage.setItem("oc.sessionId", state.sessionId);
 $("sessionId").textContent = state.sessionId;
 
-/* --------------------------------------------------------------- speech in
- * The browser only CAPTURES audio: WebRTC getUserMedia() opens the microphone,
- * an AnalyserNode drives the live VU meter, and a WebAudio PCM tap collects
- * raw samples. On stop the samples are packed into a WAV file and POSTed to
- * the server, where the local Whisper model turns them into text (English +
- * Tamil) — no browser speech engine involved. The server parses WAV only,
- * hence the encoder below. */
-
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-const SECURE = window.isSecureContext;
-
+/* ---------------------------------------------------------------- helpers */
+function setStatus(id, value) {
+  const el = $(id + "Status");
+  if (el) el.textContent = value;
+}
+function setControls(disabled) {
+  $("sendBtn").disabled = disabled;
+  $("micBtn").disabled = disabled;
+  $("text").disabled = disabled;
+}
+function setBusy(busy) {
+  state.busy = busy;
+  setControls(busy);
+}
 function notice(html) {
   if (!html) { noticeEl.classList.add("hidden"); return; }
   noticeEl.innerHTML = html;
   noticeEl.classList.remove("hidden");
 }
-if (!SECURE) {
-  notice("⚠️ <b>Microphone blocked:</b> this page must be opened over HTTPS or localhost. " +
-    "Use <code>http://localhost:8080/voice-chat.html</code> inside this machine, or enable SSL and reload.");
-}
-if (!AudioCtx) {
-  notice((noticeEl.classList.contains("hidden") ? "" : noticeEl.innerHTML + "<br>") +
-    "ℹ️ This browser cannot capture audio (Web Audio API missing). You can still type messages below.");
+function showTab(name) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.id === "tab-" + name));
 }
 
-/* Float32 PCM chunks → 16-bit mono WAV blob -------------------------------- */
+/* ------------------------------------------------------------------ tabs */
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => showTab(btn.dataset.tab));
+});
+
+/* --------------------------------------------------------------- speech in
+ * The browser only CAPTURES audio: getUserMedia opens the microphone, an
+ * AnalyserNode drives the VU meter and a WebAudio PCM tap collects samples.
+ * On stop the samples are packed into a WAV and POSTed to the server, where a
+ * local Whisper model turns them into text. The "browser" engine instead uses
+ * the Web Speech API, which sends audio to Google. */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const SECURE = window.isSecureContext;
+
+if (!SECURE) {
+  notice("⚠️ <b>Microphone blocked:</b> this page must be opened over HTTPS or localhost.");
+}
+if (!AudioCtx) {
+  notice("ℹ️ This browser cannot capture audio (Web Audio API missing). You can still type messages.");
+}
+
 function encodeWav(chunks, sampleRate) {
   let n = 0;
   for (const c of chunks) n += c.length;
@@ -418,13 +796,13 @@ function encodeWav(chunks, sampleRate) {
   const view = new DataView(buf);
   const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
   str(0, "RIFF"); view.setUint32(4, 36 + bytes, true); str(8, "WAVE");
-  str(12, "fmt "); view.setUint32(16, 16, true);        // fmt chunk size
-  view.setUint16(20, 1, true);                          // format: PCM
-  view.setUint16(22, 1, true);                          // channels: mono
+  str(12, "fmt "); view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);                          // PCM
+  view.setUint16(22, 1, true);                          // mono
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);             // byte rate
-  view.setUint16(32, 2, true);                          // block align
-  view.setUint16(34, 16, true);                         // bits per sample
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
   str(36, "data"); view.setUint32(40, bytes, true);
   let off = 44;
   for (const c of chunks) {
@@ -438,12 +816,9 @@ function encodeWav(chunks, sampleRate) {
 
 async function ensureMic() {
   if (state.micStream) return state.micStream;
-  // Raw fidelity wins for ASR, but `ideal:false` constraint objects can make Chrome select a
-  // *different* capture device with no signal — so ask in plain booleans and always fall back
-  // to a bare audio:true if the browser rejects the set.
   const wanted = {
-    echoCancellation: true,      // required: replies are spoken aloud while the mic is open
-    noiseSuppression: false,     // phone-call DSP smears quiet / accented speech
+    echoCancellation: true,
+    noiseSuppression: false,
     autoGainControl: false,
     channelCount: 1
   };
@@ -456,12 +831,11 @@ async function ensureMic() {
   const track = state.micStream.getAudioTracks()[0];
   if (track) {
     const st = track.getSettings ? track.getSettings() : {};
-    state.micLabel = (track.label || "default mic") +
-      (st.sampleRate ? " · " + st.sampleRate + " Hz" : "");
+    state.micLabel = (track.label || "default mic") + (st.sampleRate ? " · " + st.sampleRate + " Hz" : "");
     $("hint").textContent = state.micLabel;
   }
   try { state.audioCtx = new AudioCtx({ sampleRate: TARGET_RATE }); }
-  catch (_) { state.audioCtx = new AudioCtx(); }     // browser rejects the hint
+  catch (_) { state.audioCtx = new AudioCtx(); }
   if (state.audioCtx.state === "suspended") await state.audioCtx.resume();
   state.micSource = state.audioCtx.createMediaStreamSource(state.micStream);
   state.analyser = state.audioCtx.createAnalyser();
@@ -472,7 +846,7 @@ async function ensureMic() {
   return state.micStream;
 }
 
-/* VU meter ---------------------------------------------------------------- */
+/* VU meter */
 const meterEl = $("meter");
 const BARS = 14;
 for (let i = 0; i < BARS; i++) {
@@ -499,26 +873,19 @@ function startMeterLoop() {
   requestAnimationFrame(tick);
 }
 
-/* Recording --------------------------------------------------------------- */
+/* Recording */
 async function startListening() {
   if (state.busy || state.sttBusy || state.listening) return;
-  if (state.model === "browser") return startBrowserRecognition();
+  if (state.sttModel === "browser") return startBrowserRecognition();
   if (!AudioCtx) return;
   await startLocalRecording();
 }
 
-/* ---- built-in browser engine (Web Speech API / SpeechRecognition) ---------
- * Chrome/Chromium only. Google's engine: excellent accuracy and live interim
- * results, but the audio is sent to Google and it needs network access. When
- * the API or the language is unavailable we fall back to the local service. */
 function startBrowserRecognition() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    notice("â ï¸ <b>This browser has no built-in speech engine.</b> " +
-      "Switching to the local Whisper model.");
-    state.model = "medium";
-    localStorage.setItem("vc.model", state.model);
-    $("modelSel").value = state.model;
+    notice("⚠️ <b>This browser has no built-in speech engine.</b> Switching to a local Whisper model.");
+    setSttModel("medium");
     return startLocalRecording();
   }
   const rec = new SR();
@@ -532,10 +899,10 @@ function startBrowserRecognition() {
   state.listening = true;
   state.recordStartedAt = Date.now();
   $("micBtn").classList.add("listening");
-  $("micBtn").textContent = "â¬";
+  $("micBtn").textContent = "⬛";
   meterEl.classList.add("live");
   setStatus("mic", "recording… (browser)");
-  liveEl.textContent = "ð recording with the browser engine â tap the mic to stop";
+  liveEl.textContent = "🎙 recording with the browser engine — tap the mic to stop";
 
   rec.onresult = (ev) => {
     let interim = "";
@@ -545,12 +912,12 @@ function startBrowserRecognition() {
       else interim += t;
     }
     state.browserInterim = interim;
-    liveEl.textContent = "ð " + (state.browserFinal + interim).trim();
+    liveEl.textContent = "📝 " + (state.browserFinal + interim).trim();
   };
   rec.onerror = (ev) => {
     state.browserError = ev.error || "error";
     if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-      notice("â ï¸ <b>Microphone permission denied for the browser engine.</b>");
+      notice("⚠️ <b>Microphone permission denied for the browser engine.</b>");
     }
     stopListening(false);
   };
@@ -582,8 +949,6 @@ async function startLocalRecording() {
   }
   if (ctx.state === "suspended") { try { await ctx.resume(); } catch (_) { /* ignore */ } }
 
-  // One source node for the whole session; the analyser (meter) lives on it already.
-  // The recorder tap hangs off the SAME node so the graph stays connected.
   state.pcmChunks = [];
   const tapSrc = state.micSource || ctx.createMediaStreamSource(state.micStream);
   state.micSource = tapSrc;
@@ -593,18 +958,16 @@ async function startLocalRecording() {
     if (!state.listening) return;
     const input = ev.inputBuffer.getChannelData(0);
     const copy = new Float32Array(input.length);
-    copy.set(input);                                   // copy: the buffer is reused
+    copy.set(input);
     state.pcmChunks.push(copy);
   };
   // Chrome only pumps onaudioprocess while the node has a live path to the destination.
-  // A muted gain node still counts as live; gain=0.0001 keeps the graph running silently
-  // without muting the node itself.
   const sink = ctx.createGain();
   sink.gain.value = 0.0001;
   tapSrc.connect(proc);
   proc.connect(sink);
   sink.connect(ctx.destination);
-  state.processor = { proc, sink, src: null };   // src is shared, don't disconnect it
+  state.processor = { proc, sink };
 
   state.listening = true;
   state.recordStartedAt = Date.now();
@@ -624,36 +987,36 @@ function stopListening(silent) {
     if (!silent) liveEl.textContent = "";
     return;
   }
-  // browser engine: stop the recognizer and use whatever it has already produced
+
   if (state.recognizer) {
     const rec = state.recognizer;
     state.recognizer = null;
     state.listening = false;
     $("micBtn").classList.remove("listening");
-    $("micBtn").textContent = "ð¤";
+    $("micBtn").textContent = "🎤";
     meterEl.classList.remove("live");
-    try { rec.onend = null; rec.onerror = null; rec.stop(); } catch (_) {}
+    try { rec.onend = null; rec.onerror = null; rec.stop(); } catch (_) { /* ignore */ }
     const text = (state.browserFinal || "").trim();
     const err = state.browserError; state.browserError = null;
     state.browserFinal = ""; state.browserInterim = "";
     if (silent === true) { liveEl.textContent = ""; return; }
     if (err === "no-speech" || (!text && !err)) {
       liveEl.textContent = "";
-      notice("ð¤« The browser engine heard no speech in that clip.");
+      notice("🤫 The browser engine heard no speech in that clip.");
       return;
     }
     if (err === "network") {
       liveEl.textContent = "";
-      notice("â ï¸ <b>The browser engine needs internet access to Google.</b> " +
-        "Pick a local model instead, or check the connection.");
+      notice("⚠️ <b>The browser engine needs internet access to Google.</b> Pick a local model instead.");
       return;
     }
     if (!text) { liveEl.textContent = ""; return; }
-    liveEl.textContent = "ð " + text;
-    setStatus("stt", "browser Â· " + (state.language === "auto" ? "auto" : state.language));
+    liveEl.textContent = "📝 " + text;
+    setStatus("stt", "browser · " + (state.language === "auto" ? "auto" : state.language));
     send(text);
     return;
   }
+
   state.listening = false;
   const tap = state.processor;
   state.processor = null;
@@ -661,8 +1024,8 @@ function stopListening(silent) {
   try {
     if (tap) {
       tap.proc.onaudioprocess = null;
-      if (tap.src) tap.src.disconnect();
-      tap.proc.disconnect(); tap.sink.disconnect();
+      tap.proc.disconnect();
+      tap.sink.disconnect();
     }
   } catch (_) { /* already disconnected */ }
   $("micBtn").classList.remove("listening");
@@ -674,12 +1037,11 @@ function stopListening(silent) {
   finishRecording();
 }
 
-/* The WAV goes to the server; the local Whisper model returns the text. */
 async function transcribe(blob) {
   const form = new FormData();
   form.append("audio", blob, "utterance.wav");
   form.append("language", state.language);
-  form.append("model", state.model);
+  form.append("model", state.sttModel);
 
   const resp = await fetch("/api/audio/transcribe", { method: "POST", body: form });
   let data = null;
@@ -700,8 +1062,6 @@ async function finishRecording() {
     return;
   }
 
-  // Did the browser actually capture any signal? If every sample is (near) zero the
-  // problem is local (mic/graph), not the model — say so instead of blaming the server.
   let peak = 0;
   for (const c of chunks) {
     for (let i = 0; i < c.length; i++) peak = Math.max(peak, Math.abs(c[i]));
@@ -710,21 +1070,20 @@ async function finishRecording() {
     setStatus("mic", "idle");
     liveEl.textContent = "";
     notice("⚠️ <b>Your microphone produced no signal</b> while recording" +
-      (state.micLabel ? " (" + state.micLabel + ")" : "") +
-      ". Check the input device/volume, then try again.");
+      (state.micLabel ? " (" + state.micLabel + ")" : "") + ". Check the input device/volume.");
     setControls(false);
     return;
   }
 
   state.sttBusy = true;
-  // Disable the controls without touching state.busy: send() must stay allowed.
   setControls(true);
-  liveEl.textContent = "🧠 transcribing on the server… (peak " + peak.toFixed(2) + ")";
+  liveEl.textContent = "🧠 transcribing on the server…";
   try {
     const data = await transcribe(blob);
     const lang = data.language || "?";
     const conf = typeof data.language_probability === "number" ? data.language_probability.toFixed(2) : "";
-    setStatus("stt", (data.model || state.model) + " · " + lang + (conf ? " · " + conf : "") + " · " + (data.elapsed_ms || 0) + " ms");
+    setStatus("stt", (data.model || state.sttModel) + " · " + lang + (conf ? " · " + conf : "") +
+      " · " + (data.elapsed_ms || 0) + " ms");
     if (!data.text) {
       liveEl.textContent = "";
       notice("🤫 The server heard no speech in that clip.");
@@ -733,7 +1092,6 @@ async function finishRecording() {
     liveEl.textContent = "📝 " + data.text;
     setTimeout(() => { if (liveEl.textContent.startsWith("📝")) liveEl.textContent = ""; }, 6000);
     await send(data.text);
-    return;
   } catch (e) {
     liveEl.textContent = "";
     notice("⚠️ <b>Transcription failed:</b> " + (e && e.message ? e.message : e) +
@@ -744,13 +1102,11 @@ async function finishRecording() {
   }
 }
 
-/* ------------------------------------------------------------------ speech out
- * Replies are spoken with the Web Speech API's speechSynthesis (output only —
- * understanding happens on the server). */
+/* -------------------------------------------------------------- speech out */
 const synth = window.speechSynthesis;
 function pickVoice(forText) {
   const voices = synth ? synth.getVoices() : [];
-  const tamil = /[஀-௿]/.test(forText || "");
+  const tamil = /[\u0B80-\u0BFF]/.test(forText || "");
   if (tamil) {
     const ta = voices.find(v => /^ta/i.test(v.lang));
     if (ta) return ta;
@@ -764,47 +1120,212 @@ function speak(text) {
   const u = new SpeechSynthesisUtterance(text);
   const v = pickVoice(text);
   if (v) u.voice = v;
-  u.lang = (v && v.lang) || (/[஀-௿]/.test(text) ? "ta-IN" : "en-US");
-  u.rate = 1.02; u.pitch = 1.0;
+  u.lang = (v && v.lang) || (/[\u0B80-\u0BFF]/.test(text) ? "ta-IN" : "en-US");
+  u.rate = 1.02;
+  u.pitch = 1.0;
   u.onstart = () => setStatus("mic", "speaking…");
   u.onend = () => setStatus("mic", "idle");
   synth.speak(u);
 }
 function stopSpeaking() { if (synth) synth.cancel(); }
-if (synth) synth.onvoiceschanged = () => {};   // warm the voice list
+if (synth) synth.onvoiceschanged = () => {};
 
-/* ------------------------------------------------------------------ chat UI */
-/* Ask the user whether a tool call may run. Resolves true (allow) or false (deny). */
-function askToolApproval(name, argumentsRaw) {
-  return new Promise((resolve) => {
-    const box = $("approval");
-    $("approvalTool").textContent = name;
-    $("approvalWarn").textContent = name === "bash"
-      ? "\u26a0\ufe0f This runs a shell command on the server, as the application's user. Review it carefully."
-      : "";
-    let pretty = String(argumentsRaw || "");
-    try { pretty = JSON.stringify(JSON.parse(pretty), null, 2); } catch (_) { /* keep raw */ }
-    $("approvalArgs").textContent = pretty || "(no arguments)";
-    box.classList.add("show");
+/* ------------------------------------------------------------- chat models */
+async function loadChatModels() {
+  const dropdown = $("modelDropdown");
+  const previous = state.selectedModel;
+  dropdown.innerHTML = "";
 
-    const finish = (allow) => {
-      box.classList.remove("show");
-      $("approvalAllow").removeEventListener("click", onAllow);
-      $("approvalDeny").removeEventListener("click", onDeny);
-      document.removeEventListener("keydown", onKey);
-      resolve(allow);
-    };
-    const onAllow = () => finish(true);
-    const onDeny = () => finish(false);
-    const onKey = (e) => { if (e.key === "Escape") finish(false); };
+  try {
+    const resp = await fetch("/api/providers");
+    const providers = await resp.json();
+    providers.forEach(p => {
+      (p.models || []).forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m + (p.name !== "zen" ? " (" + p.name + ")" : "");
+        opt.dataset.provider = p.name;
+        dropdown.appendChild(opt);
+      });
+    });
+  } catch (e) {
+    console.error("Failed to load providers", e);
+  }
 
-    $("approvalAllow").addEventListener("click", onAllow);
-    $("approvalDeny").addEventListener("click", onDeny);
-    document.addEventListener("keydown", onKey);
-    $("approvalAllow").focus();
+  state.customModels.forEach(cm => {
+    const opt = document.createElement("option");
+    opt.value = cm.name;
+    opt.textContent = cm.name + " (custom)";
+    opt.dataset.custom = "true";
+    opt.dataset.provider = cm.provider;
+    dropdown.appendChild(opt);
+  });
+
+  if (!Array.from(dropdown.options).some(o => o.value === previous)) {
+    const opt = document.createElement("option");
+    opt.value = previous;
+    opt.textContent = previous;
+    dropdown.insertBefore(opt, dropdown.firstChild);
+  }
+  dropdown.value = previous;
+  updateModelInfo();
+}
+
+let modelsWired = false;
+function wireModelDropdown() {
+  if (modelsWired) return;
+  modelsWired = true;
+  $("modelDropdown").addEventListener("change", () => {
+    const dropdown = $("modelDropdown");
+    const opt = dropdown.options[dropdown.selectedIndex];
+    state.selectedModel = dropdown.value;
+    localStorage.setItem("oc.model", state.selectedModel);
+    updateModelInfo();
+    if (opt && opt.dataset.custom === "true") {
+      const cm = state.customModels.find(m => m.name === state.selectedModel);
+      if (cm && cm.apiKeyRequired && !state.apiKeys[state.selectedModel]) {
+        showApiKeyModal(state.selectedModel);
+      }
+    }
   });
 }
 
+function updateModelInfo() {
+  const cm = state.customModels.find(m => m.name === state.selectedModel);
+  $("modelInfo").textContent = cm
+    ? "Selected: " + cm.name + " · " + cm.provider + (cm.baseUrl ? " · " + cm.baseUrl : "")
+    : "Selected: " + state.selectedModel;
+}
+
+function renderCustomModels() {
+  const list = $("customModelsList");
+  list.innerHTML = "";
+  if (state.customModels.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "card-sub";
+    empty.style.textAlign = "center";
+    empty.style.padding = "20px";
+    empty.textContent = "No custom models added yet";
+    list.appendChild(empty);
+    return;
+  }
+  state.customModels.forEach((cm, idx) => {
+    const item = document.createElement("div");
+    item.className = "model-item";
+
+    const info = document.createElement("div");
+    info.className = "model-info";
+    const name = document.createElement("div");
+    name.className = "model-name";
+    name.textContent = cm.name;
+    const meta = document.createElement("div");
+    meta.className = "model-meta";
+    meta.textContent = cm.provider + (cm.baseUrl ? " • " + cm.baseUrl : "");
+    info.appendChild(name);
+    info.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "model-actions";
+    const edit = document.createElement("button");
+    edit.className = "small-btn";
+    edit.textContent = "Edit";
+    edit.onclick = () => editCustomModel(idx);
+    const remove = document.createElement("button");
+    remove.className = "small-btn";
+    remove.textContent = "Remove";
+    remove.onclick = () => removeCustomModel(idx);
+    actions.appendChild(edit);
+    actions.appendChild(remove);
+
+    item.appendChild(info);
+    item.appendChild(actions);
+    list.appendChild(item);
+  });
+}
+
+function openAddModelModal() {
+  state.editingModel = -1;
+  $("customModelName").value = "";
+  $("customApiKey").value = "";
+  $("customBaseUrl").value = "";
+  $("customProvider").value = "custom";
+  $("addModelModal").classList.add("active");
+}
+function closeAddModelModal() { $("addModelModal").classList.remove("active"); }
+
+function editCustomModel(idx) {
+  const cm = state.customModels[idx];
+  if (!cm) return;
+  state.editingModel = idx;
+  $("customProvider").value = cm.provider;
+  $("customModelName").value = cm.name;
+  $("customApiKey").value = state.apiKeys[cm.name] || cm.apiKey || "";
+  $("customBaseUrl").value = cm.baseUrl || "";
+  $("addModelModal").classList.add("active");
+}
+
+function saveCustomModel() {
+  const provider = $("customProvider").value;
+  const name = $("customModelName").value.trim();
+  const apiKey = $("customApiKey").value.trim();
+  const baseUrl = $("customBaseUrl").value.trim();
+
+  if (!name) { alert("Please enter a model name"); return; }
+  if (provider === "custom" && !baseUrl) {
+    alert("A custom provider needs a Base URL (for example https://api.example.com/v1).");
+    return;
+  }
+
+  const editing = typeof state.editingModel === "number" ? state.editingModel : -1;
+  const entry = { name, provider, baseUrl, apiKeyRequired: !!apiKey };
+  if (editing >= 0) {
+    const oldName = state.customModels[editing].name;
+    if (oldName !== name) delete state.apiKeys[oldName];
+    state.customModels[editing] = entry;
+  } else {
+    state.customModels.push(entry);
+  }
+  localStorage.setItem("oc.customModels", JSON.stringify(state.customModels));
+  if (apiKey) {
+    state.apiKeys[name] = apiKey;
+    localStorage.setItem("oc.apiKeys", JSON.stringify(state.apiKeys));
+  }
+
+  state.editingModel = -1;
+  closeAddModelModal();
+  renderCustomModels();
+  loadChatModels();
+}
+
+function removeCustomModel(idx) {
+  if (!confirm("Remove this model?")) return;
+  const name = state.customModels[idx].name;
+  state.customModels.splice(idx, 1);
+  delete state.apiKeys[name];
+  localStorage.setItem("oc.customModels", JSON.stringify(state.customModels));
+  localStorage.setItem("oc.apiKeys", JSON.stringify(state.apiKeys));
+  if (state.selectedModel === name) state.selectedModel = "big-pickle";
+  renderCustomModels();
+  loadChatModels();
+}
+
+/* API-key modal */
+function showApiKeyModal(model) {
+  state.pendingApiModel = model;
+  $("apiKeyModelName").textContent = model;
+  $("apiKeyInput").value = "";
+  $("apiKeyModal").classList.add("active");
+}
+function closeApiKeyModal() { $("apiKeyModal").classList.remove("active"); }
+function saveApiKey() {
+  const key = $("apiKeyInput").value.trim();
+  if (!key) { alert("Please enter an API key"); return; }
+  state.apiKeys[state.pendingApiModel] = key;
+  localStorage.setItem("oc.apiKeys", JSON.stringify(state.apiKeys));
+  closeApiKeyModal();
+}
+
+/* --------------------------------------------------------------- chat flow */
 function addBubble(role, text) {
   const wrap = document.createElement("div");
   wrap.className = "msg " + role;
@@ -814,23 +1335,27 @@ function addBubble(role, text) {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.textContent = text || "";
-  wrap.appendChild(who); wrap.appendChild(bubble);
+  wrap.appendChild(who);
+  wrap.appendChild(bubble);
   chatEl.appendChild(wrap);
   chatEl.scrollTop = chatEl.scrollHeight;
   return bubble;
 }
-function setStatus(id, v) { $(id + "Status").textContent = v; }
-function setControls(disabled) {
-  $("sendBtn").disabled = disabled;
-  $("micBtn").disabled = disabled;
-  $("text").disabled = disabled;
-}
-function setBusy(b) {
-  state.busy = b;
-  setControls(b);
+
+function quickSend(msg) {
+  $("text").value = msg;
+  sendMessage();
 }
 
-/* ------------------------------------------------------------------ backend */
+function sendMessage() {
+  const input = $("text");
+  const message = input.value.trim();
+  if (!message || state.busy) return;
+  input.value = "";
+  input.style.height = "auto";
+  send(message);
+}
+
 async function send(message) {
   if (!message || state.busy) return;
   stopSpeaking();
@@ -844,14 +1369,33 @@ async function send(message) {
   bubble.appendChild(cursor);
   setStatus("mic", "thinking…");
 
-  let reply = "", rounds = 0;
+  let reply = "";
+  let rounds = 0;
   try {
+    const body = {
+      sessionId: state.sessionId,
+      message,
+      model: state.selectedModel,
+      toolMode: state.toolMode
+    };
+    const cm = state.customModels.find(m => m.name === state.selectedModel);
+    if (cm) {
+      body.provider = cm.provider;
+      if (cm.baseUrl) body.baseUrl = cm.baseUrl;
+      const key = state.apiKeys[cm.name] || cm.apiKey;
+      if (key) body.apiKey = key;
+    }
+
     const resp = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: state.sessionId, message, model: "big-pickle", toolMode: state.toolMode })
+      body: JSON.stringify(body)
     });
-    if (!resp.ok || !resp.body) throw new Error("HTTP " + resp.status);
+    if (!resp.ok || !resp.body) {
+      let detail = "HTTP " + resp.status;
+      try { const e = await resp.json(); detail = e.message || e.error || detail; } catch (_) { /* not JSON */ }
+      throw new Error(detail);
+    }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
@@ -872,48 +1416,48 @@ async function send(message) {
         if (!data) continue;
         let payload;
         try { payload = JSON.parse(data); } catch (_) { continue; }
+
         if (ev === "token" && payload.text) {
           reply += payload.text;
           bubble.textContent = reply;
           chatEl.scrollTop = chatEl.scrollHeight;
+        } else if (ev === "reasoning") {
+          // Not shown inline: it would read as the answer. Status only.
+          setStatus("mic", "reasoning…");
         } else if (ev === "round") {
           rounds = payload.round;
         } else if (ev === "tool_start") {
-          bubble.textContent = reply + "\n🔧 " + payload.name + " " + String(payload.arguments || "").slice(0, 120);
+          bubble.textContent = reply + "\n🔧 " + payload.name + " " +
+            String(payload.arguments || "").slice(0, 120);
           chatEl.scrollTop = chatEl.scrollHeight;
         } else if (ev === "tool_approval") {
-          const decision = await askToolApproval(payload.name, payload.arguments);
-          try {
-            await fetch("/api/tool-approval", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: payload.id, allow: decision })
-            });
-          } catch (_) { /* the turn will time out and deny on its own */ }
-          bubble.textContent = reply + (decision ? "\n🔧 " + payload.name + " (allowed)" : "\n⛔ " + payload.name + " (denied)");
+          showToolApproval(payload);
+          const decision = await waitForApproval();
+          bubble.textContent = reply + (decision
+            ? "\n🔧 " + payload.name + " (allowed)"
+            : "\n⛔ " + payload.name + " (denied)");
           chatEl.scrollTop = chatEl.scrollHeight;
         } else if (ev === "tool_approval_timeout") {
           bubble.textContent = reply + "\n⏱️ tool approval timed out — call denied";
         } else if (ev === "tool_result") {
           let line = "\n🔧 " + payload.name + (payload.success ? " ✓" : " ✗");
-          // todowrite: show the plan itself, since that is the useful part.
           if (payload.name === "todowrite" && payload.success) {
             try {
               const t = JSON.parse(payload.result);
               if (Array.isArray(t.todos) && t.todos.length) {
                 const mark = { in_progress: "▶", completed: "✔", cancelled: "✖", pending: "•" };
                 line += "\n" + t.todos.map(x =>
-                  "   " + (mark[x.status] || "•") + " " + x.content
-                  + "  [" + x.status + "/" + x.priority + "]").join("\n");
+                  "   " + (mark[x.status] || "•") + " " + x.content +
+                  "  [" + x.status + "/" + x.priority + "]").join("\n");
               }
-            } catch (_) { /* show just the header */ }
+            } catch (_) { /* header only */ }
           }
           bubble.textContent = reply + line;
           chatEl.scrollTop = chatEl.scrollHeight;
         } else if (ev === "done") {
           reply = payload.reply || reply;
           rounds = payload.rounds || rounds;
-          bubble.textContent = reply;
+          bubble.textContent = reply || "(no reply)";
           const meta = document.createElement("div");
           meta.className = "meta";
           meta.textContent = (rounds ? rounds + " round(s) · " : "") +
@@ -928,7 +1472,6 @@ async function send(message) {
     speak(reply);
   } catch (e) {
     bubble.textContent = "⚠️ " + (e && e.message ? e.message : e);
-    bubble.parentElement.style.filter = "hue-rotate(120deg)";
   } finally {
     cursor.remove();
     setBusy(false);
@@ -937,32 +1480,76 @@ async function send(message) {
   }
 }
 
+/* Tool approval: the modal resolves this promise. */
+let approvalResolver = null;
+function showToolApproval(payload) {
+  state.pendingApproval = payload;
+  $("approvalToolName").textContent = payload.name;
+  try {
+    $("approvalArgs").textContent = JSON.stringify(JSON.parse(payload.arguments || "{}"), null, 2);
+  } catch (_) {
+    $("approvalArgs").textContent = payload.arguments || "";
+  }
+  $("approvalWarn").textContent = payload.name === "bash"
+    ? "⚠️ This runs a shell command on the server, as the application's user."
+    : "";
+  $("approvalModal").classList.add("active");
+}
+function waitForApproval() {
+  return new Promise(resolve => { approvalResolver = resolve; });
+}
+function answerApproval(allow) {
+  const pending = state.pendingApproval;
+  $("approvalModal").classList.remove("active");
+  state.pendingApproval = null;
+  if (pending) {
+    fetch("/api/tool-approval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: pending.id, allow: !!allow })
+    }).catch(() => { /* the turn will deny on its own */ });
+  }
+  if (approvalResolver) {
+    const resolve = approvalResolver;
+    approvalResolver = null;
+    resolve(!!allow);
+  }
+}
+function allowTool() { answerApproval(true); }
+function denyTool() { answerApproval(false); }
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && $("approvalModal").classList.contains("active")) denyTool();
+});
+
 async function loadHistory() {
+  let shown = 0;
   try {
     const resp = await fetch("/api/chat/" + encodeURIComponent(state.sessionId) + "/history");
-    if (!resp.ok) return;
+    if (!resp.ok) return 0;
     const msgs = await resp.json();
     for (const m of msgs) {
       const text = typeof m.content === "string" ? m.content
-                 : Array.isArray(m.content) ? m.content.map(p => p.text || "").join("\n") : "";
-      if (m.role === "user" && text) addBubble("user", text);
-      else if (m.role === "assistant" && text && !m.tool_calls) addBubble("assistant", text);
+        : Array.isArray(m.content) ? m.content.map(p => p.text || "").join("\n") : "";
+      if (m.role === "user" && text) { addBubble("user", text); shown++; }
+      else if (m.role === "assistant" && text && !m.tool_calls) { addBubble("assistant", text); shown++; }
     }
   } catch (_) { /* first run */ }
+  return shown;
 }
 
 async function newChat() {
+  if (!confirm("Start a new conversation?")) return;
   if (state.sessionId) {
-    try { await fetch("/api/chat/" + encodeURIComponent(state.sessionId), { method: "DELETE" }); } catch (_) {}
+    try { await fetch("/api/chat/" + encodeURIComponent(state.sessionId), { method: "DELETE" }); } catch (_) { /* ignore */ }
   }
-  state.sessionId = "web-" + Math.random().toString(36).slice(2, 12);
-  localStorage.setItem("vc.sessionId", state.sessionId);
+  state.sessionId = "sess_" + Math.random().toString(36).slice(2, 12);
+  localStorage.setItem("oc.sessionId", state.sessionId);
   $("sessionId").textContent = state.sessionId;
   chatEl.querySelectorAll(".msg").forEach(n => n.remove());
   notice("");
 }
 
-/* Is the local speech-to-text service up? -------------------------------- */
+/* ------------------------------------------------------- speech service info */
 async function checkStt() {
   const pill = $("sttPill");
   try {
@@ -973,12 +1560,19 @@ async function checkStt() {
     const langs = (data.languages || []).join("+").toUpperCase();
     const nModels = (data.models || []).length;
     const srOk = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-    pill.textContent = "STT: " + langs + (nModels ? " · " + nModels + " models" : "") + (srOk ? " + browser" : "") +
-      (data.status && data.status !== "ready" ? " (" + data.status + ")" : "");
+    pill.textContent = "STT: " + langs + (nModels ? " · " + nModels + " models" : "") +
+      (srOk ? " + browser" : "") + (data.status && data.status !== "ready" ? " (" + data.status + ")" : "");
     syncModelSel(data);
     pill.classList.toggle("on", data.status === "ready");
     pill.classList.toggle("bad", data.status === "error");
-    if (data.status && data.status !== "ready") setTimeout(checkStt, 5000);
+    if (!nModels) {
+      $("hint").textContent = "no local speech models installed — download one in Models, or pick the browser engine";
+    }
+    // Only transient states are worth a fast re-check; "no-models" changes when you install one,
+    // and that already triggers a fresh check.
+    if (data.status === "loading" || data.status === "starting" || data.status === "initializing") {
+      setTimeout(checkStt, 5000);
+    }
   } catch (e) {
     state.sttReady = false;
     pill.textContent = "STT: offline";
@@ -988,7 +1582,6 @@ async function checkStt() {
   }
 }
 
-/* Keep the model dropdown in sync with what the STT server offers. */
 function syncModelSel(data) {
   const sel = $("modelSel");
   const offered = data.models || [];
@@ -998,73 +1591,40 @@ function syncModelSel(data) {
     opt.hidden = missing;
     opt.disabled = missing;
   }
-  if (state.model !== "browser" && offered.length && !offered.includes(state.model)) {
-    state.model = offered.includes(data.default_model) ? data.default_model : offered[0];
-    localStorage.setItem("vc.model", state.model);
+  if (state.sttModel !== "browser" && offered.length && !offered.includes(state.sttModel)) {
+    state.sttModel = offered.includes(data.default_model) ? data.default_model : offered[0];
+    localStorage.setItem("vc.model", state.sttModel);
   }
-  sel.value = state.model;
+  sel.value = state.sttModel;
 }
 
-/* ------------------------------------------------------------------ wiring */
-$("micBtn").addEventListener("click", () => state.listening ? stopListening(false) : startListening());
-$("toolModeSel").addEventListener("change", () => {
-  state.toolMode = $("toolModeSel").value;
-  localStorage.setItem("vc.tools", state.toolMode);
-  $("toolsStatus").textContent = state.toolMode;
-  if (state.toolMode === "off") {
-    notice("\ud83d\udee0\ufe0f <b>Tools disabled.</b> The AI can only answer with text.");
-  } else if (state.toolMode === "auto") {
-    notice("\ud83d\udee0\ufe0f <b>Auto-run tools.</b> The AI may run file tools without asking \u2014 "
-      + "shell commands still require your approval.");
-  } else {
-    notice("\ud83d\udee0\ufe0f <b>Ask before tools.</b> Every tool call waits for your Allow/Deny.");
-  }
-});
-$("sendBtn").addEventListener("click", () => { const t = $("text").value.trim(); $("text").value = ""; send(t); });
-$("text").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { const t = $("text").value.trim(); $("text").value = ""; send(t); }
-});
-$("langSel").addEventListener("change", () => {
-  state.language = $("langSel").value;
-  localStorage.setItem("vc.lang", state.language);
-});
-$("modelSel").addEventListener("change", () => {
-  state.model = $("modelSel").value;
-  localStorage.setItem("vc.model", state.model);
+function setSttModel(model) {
+  state.sttModel = model;
+  localStorage.setItem("vc.model", model);
+  $("modelSel").value = model;
   setStatus("stt", "—");
   liveEl.textContent = "";
-  if (state.model === "browser") {
-    notice("ð <b>Browser engine selected.</b> Your audio is transcribed by the " +
-      "browser's built-in recognizer (Google) and is <b>sent to Google</b>. " +
-      "Pick a local model to keep audio on this server.");
+  if (model === "browser") {
+    notice("🌐 <b>Browser engine selected.</b> Audio is transcribed by the browser's built-in " +
+      "recognizer (Google) and is <b>sent to Google</b>. Pick a local model to keep audio on this server.");
   } else {
     notice("");
   }
-});
-$("voiceBtn").addEventListener("click", () => {
-  state.voiceOn = !state.voiceOn;
-  localStorage.setItem("vc.voiceOn", state.voiceOn ? "on" : "off");
+}
+
+function setVoiceOn(on) {
+  state.voiceOn = !!on;
+  localStorage.setItem("oc.voiceOn", state.voiceOn ? "on" : "off");
   $("voiceBtn").classList.toggle("toggled", state.voiceOn);
+  $("voiceBtn").textContent = state.voiceOn ? "🔊 Speak" : "🔇 Muted";
+  $("voiceToggle").textContent = state.voiceOn ? "On" : "Off";
+  $("voiceToggle").classList.toggle("toggled", state.voiceOn);
   $("ttsPill").textContent = "TTS: " + (state.voiceOn ? "on" : "off");
   $("ttsPill").classList.toggle("on", state.voiceOn);
   if (!state.voiceOn) stopSpeaking();
-});
-$("stopBtn").addEventListener("click", () => { stopSpeaking(); stopListening(); });
-$("newBtn").addEventListener("click", newChat);
+}
 
-/* init */
-$("voiceBtn").classList.toggle("toggled", state.voiceOn);
-$("ttsPill").textContent = "TTS: " + (state.voiceOn ? "on" : "off");
-$("ttsPill").classList.toggle("on", state.voiceOn);
-$("langSel").value = state.language;
-$("modelSel").value = state.model;
-$("toolModeSel").value = state.toolMode;
-$("toolsStatus").textContent = state.toolMode;
-$("modelSel").value = state.model;
-$("toolModeSel").value = state.toolMode;
-$("toolsStatus").textContent = state.toolMode;
-
-/* ---- model manager ---------------------------------------------------- */
+/* ------------------------------------------------------ speech model manager */
 function fmtBytes(n) {
   if (!n && n !== 0) return "";
   const u = ["B", "KB", "MB", "GB"];
@@ -1075,73 +1635,72 @@ function fmtBytes(n) {
 
 let mPoll = null;
 
-async function openModels() {
-  $("mpanel").classList.add("open");
-  $("mpanel").setAttribute("aria-hidden", "false");
-  $("modelsBtn").classList.add("on");
-  await loadModels();
-  startProgressPoll();
-}
-function closeModels() {
-  $("mpanel").classList.remove("open");
-  $("mpanel").setAttribute("aria-hidden", "true");
-  $("modelsBtn").classList.remove("on");
-  stopProgressPoll();
-}
-
-async function loadModels() {
+async function loadSpeechModels() {
   $("merr").textContent = "";
   try {
     const resp = await fetch("/api/models");
     const d = await resp.json();
     if (!resp.ok || !d.ok) throw new Error(d.error || ("HTTP " + resp.status));
 
-    // sources dropdown (built once)
     const src = $("msrc");
     if (!src.options.length) {
       for (const s of (d.sources || [])) {
         const o = document.createElement("option");
-        o.value = s.id; o.textContent = s.label;
-        if (s.id === "upload") { o.disabled = true; o.textContent += " (use the folder below)"; }
+        o.value = s.id;
+        o.textContent = s.label;
+        if (s.id === "upload") { o.disabled = true; o.textContent += " (use the folder on disk)"; }
         src.appendChild(o);
       }
     }
     $("mdirPill").textContent = fmtBytes(d.freeBytes) + " free";
 
-    const inst = {};
-    for (const m of (d.installed || [])) inst[m.name] = m;
+    const installed = {};
+    for (const m of (d.installed || [])) installed[m.name] = m;
+
     const list = $("mlist");
     list.innerHTML = "";
     for (const a of (d.available || [])) {
-      const has = a.installed || !!inst[a.name];
+      const has = a.installed || !!installed[a.name];
       const card = document.createElement("div");
       card.className = "mcard" + (has ? " installed" : "");
-      const size = has && inst[a.name] ? fmtBytes(inst[a.name].bytes) : fmtBytes(a.installedBytes);
-      card.innerHTML =
-        '<div class="row"><span class="name">' + a.name + (has ? " ✅" : "") + '</span>' +
-        '<span class="sz">' + size + (has ? " installed" : " · " + fmtBytes(a.archiveBytes) + " download") + '</span></div>' +
-        '<div class="meta">' + (a.dir || "") + '</div>' +
-        '<div class="actions"></div>' +
-        '<div class="mbar" style="display:none"><i></i></div>' +
-        '<div class="meta prog" style="display:none"></div>';
-      const actions = card.querySelector(".actions");
+
+      const row = document.createElement("div");
+      row.className = "row";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = a.name + (has ? " ✅" : "");
+      const size = document.createElement("span");
+      size.className = "sz";
+      size.textContent = has && installed[a.name]
+        ? fmtBytes(installed[a.name].bytes) + " installed"
+        : (a.installedBytes ? fmtBytes(a.installedBytes) + " partial" : fmtBytes(a.archiveBytes) + " download");
+      row.appendChild(name);
+      row.appendChild(size);
+      card.appendChild(row);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = a.dir || "";
+      card.appendChild(meta);
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
       if (has) {
+        const use = document.createElement("button");
+        use.textContent = "Use";
+        use.onclick = () => { setSttModel(a.name); showTab("chat"); };
         const del = document.createElement("button");
         del.className = "danger";
         del.textContent = "Delete";
-        del.onclick = () => deleteModel(a.name);
-        actions.appendChild(del);
-        const use = document.createElement("button");
-        use.textContent = "Use";
-        use.onclick = () => { $("modelSel").value = a.name; state.model = a.name;
-                              $("modelSel").dispatchEvent(new Event("change")); closeModels(); };
+        del.onclick = () => deleteSpeechModel(a.name);
         actions.appendChild(use);
+        actions.appendChild(del);
       } else {
         const dl = document.createElement("button");
         dl.className = "pri";
         dl.textContent = "Download";
         dl.disabled = !a.fits;
-        dl.onclick = () => downloadModel(a.name, card);
+        dl.onclick = () => downloadSpeechModel(a.name, card);
         actions.appendChild(dl);
         if (!a.fits) {
           const warn = document.createElement("span");
@@ -1150,28 +1709,43 @@ async function loadModels() {
           actions.appendChild(warn);
         }
       }
+      card.appendChild(actions);
+
+      const bar = document.createElement("div");
+      bar.className = "mbar";
+      bar.style.display = "none";
+      bar.innerHTML = "<i></i>";
+      card.appendChild(bar);
+      const prog = document.createElement("div");
+      prog.className = "meta prog";
+      prog.style.display = "none";
+      card.appendChild(prog);
+
       list.appendChild(card);
     }
+
     $("mnote").innerHTML = "Models install into <code>" + (d.modelsDir || "") +
-      "</code>. A 3 GB <code>large-v3</code> is optional — the app runs fine with just one model.";
+      "</code>. A 3 GB <code>large-v3</code> is optional — the app runs fine with one small model.";
   } catch (e) {
     $("merr").textContent = "Could not load models: " + e.message;
     $("mdirPill").textContent = "offline";
   }
 }
 
-async function downloadModel(name, card) {
+async function downloadSpeechModel(name, card) {
   $("merr").textContent = "";
-  card.querySelector(".actions button").disabled = true;
-  const bar = card.querySelector(".mbar"), fill = bar.querySelector("i"),
-        prog = card.querySelector(".prog");
-  bar.style.display = "block"; prog.style.display = "block";
+  const first = card.querySelector(".actions button");
+  if (first) first.disabled = true;
+  const bar = card.querySelector(".mbar");
+  const fill = card.querySelector(".mbar > i");
+  const prog = card.querySelector(".prog");
+  bar.style.display = "block";
+  prog.style.display = "block";
   prog.textContent = "starting…";
   const source = $("msrc").value || "github";
   try {
     const resp = await fetch("/api/models/download?model=" + encodeURIComponent(name) +
-                             "&source=" + encodeURIComponent(source),
-                             { method: "POST" });
+      "&source=" + encodeURIComponent(source), { method: "POST" });
     const d = await resp.json();
     if (!resp.ok || !d.ok) throw new Error(d.error || ("HTTP " + resp.status));
     startProgressPoll();
@@ -1179,21 +1753,20 @@ async function downloadModel(name, card) {
     $("merr").textContent = "Download failed: " + e.message;
     prog.textContent = "";
     bar.style.display = "none";
-    card.querySelector(".actions button").disabled = false;
+    if (first) first.disabled = false;
   }
 }
 
-async function deleteModel(name) {
+async function deleteSpeechModel(name) {
   if (!confirm("Delete the '" + name + "' model from disk?")) return;
   $("merr").textContent = "";
   try {
-    const resp = await fetch("/api/models/delete?model=" + encodeURIComponent(name),
-                             { method: "POST" });
+    const resp = await fetch("/api/models/delete?model=" + encodeURIComponent(name), { method: "POST" });
     const d = await resp.json();
     if (!resp.ok || !d.ok) throw new Error(d.error || ("HTTP " + resp.status));
     notice("🗑 Removed <b>" + name + "</b> — freed " + fmtBytes(d.freedBytes) + ".");
     setTimeout(() => notice(""), 3000);
-    await loadModels();
+    await loadSpeechModels();
     checkStt();
   } catch (e) {
     $("merr").textContent = "Delete failed: " + e.message;
@@ -1205,25 +1778,24 @@ function startProgressPoll() {
   mPoll = setInterval(async () => {
     try {
       const d = await (await fetch("/api/models/progress")).json();
-      const cards = Array.from(document.querySelectorAll("#mlist .mcard"));
-      for (const card of cards) {
+      for (const card of Array.from(document.querySelectorAll("#mlist .mcard"))) {
         const nm = card.querySelector(".name").textContent.replace(/ ✅$/, "").trim();
-        const active = d.model === nm &&
-          (d.phase === "downloading" || d.phase === "extracting");
-        const bar = card.querySelector(".mbar"), fill = bar.querySelector("i"),
+        const active = d.model === nm && (d.phase === "downloading" || d.phase === "extracting");
+        if (!active) continue;
+        const bar = card.querySelector(".mbar"), fill = card.querySelector(".mbar > i"),
               prog = card.querySelector(".prog");
-        if (active) {
-          bar.style.display = "block"; prog.style.display = "block";
-          fill.style.width = (d.percent || 0) + "%";
-          prog.textContent = d.phase + " · " + fmtBytes(d.received) + " / " + fmtBytes(d.total) +
-            " · " + (d.percent || 0) + "%";
-        }
+        bar.style.display = "block";
+        prog.style.display = "block";
+        fill.style.width = (d.percent || 0) + "%";
+        prog.textContent = d.phase + " · " + fmtBytes(d.received) + " / " + fmtBytes(d.total) +
+          " · " + (d.percent || 0) + "%";
       }
       if (d.phase === "done") {
         stopProgressPoll();
         notice("✅ Installed <b>" + d.model + "</b> — ready to use.");
         setTimeout(() => notice(""), 3000);
-        await loadModels(); checkStt();
+        await loadSpeechModels();
+        checkStt();
       } else if (d.phase === "error") {
         stopProgressPoll();
         $("merr").textContent = "Download failed: " + (d.error || "unknown error");
@@ -1233,29 +1805,59 @@ function startProgressPoll() {
 }
 function stopProgressPoll() { if (mPoll) { clearInterval(mPoll); mPoll = null; } }
 
-$("modelsBtn").addEventListener("click", () => {
-  $("mpanel").classList.contains("open") ? closeModels() : openModels();
+/* ---------------------------------------------------------------- wiring */
+$("micBtn").addEventListener("click", () => state.listening ? stopListening(false) : startListening());
+$("sendBtn").addEventListener("click", sendMessage);
+$("langSel").addEventListener("change", () => {
+  state.language = $("langSel").value;
+  localStorage.setItem("vc.lang", state.language);
 });
-$("mclose").addEventListener("click", closeModels);
+$("modelSel").addEventListener("change", () => setSttModel($("modelSel").value));
+$("voiceBtn").addEventListener("click", () => setVoiceOn(!state.voiceOn));
+$("voiceToggle").addEventListener("click", () => setVoiceOn(!state.voiceOn));
+$("stopBtn").addEventListener("click", () => { stopSpeaking(); stopListening(false); });
+$("toolModeSel").addEventListener("change", () => {
+  state.toolMode = $("toolModeSel").value;
+  localStorage.setItem("oc.toolMode", state.toolMode);
+  if (state.toolMode === "off") {
+    notice("🛠️ <b>Tools disabled.</b> The AI can only answer with text.");
+  } else if (state.toolMode === "auto") {
+    notice("🛠️ <b>Auto-run tools.</b> The AI may run file tools without asking — shell commands still require approval.");
+  } else {
+    notice("🛠️ <b>Ask before tools.</b> Every tool call waits for your Allow/Deny.");
+  }
+});
+
+const textarea = $("text");
+textarea.addEventListener("input", function () {
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 100) + "px";
+});
+textarea.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+/* ---------------------------------------------------------------- init */
+$("toolModeSel").value = state.toolMode;
+$("langSel").value = state.language;
+$("modelSel").value = state.sttModel;
+setVoiceOn(state.voiceOn);
+wireModelDropdown();
+loadChatModels();
+renderCustomModels();
+loadSpeechModels();
 checkStt();
 setInterval(checkStt, 30000);
-loadHistory();
-addBubble("assistant", "Hi! Press 🎤 and speak — your words are transcribed on this server "
-  + "(English or தமிழ், pick a language above) and then sent to the model. Replies can be spoken back.");
+loadHistory().then(shown => {
+  if (shown === 0) {
+    addBubble("assistant", "Hi! Press 🎤 and speak — your words are transcribed on this server " +
+      "(English or தமிழ்; pick the language and model above) and then sent to the model. " +
+      "Replies can be spoken back with 🔊.");
+  }
+});
 </script>
-<div id="approval" role="dialog" aria-modal="true" aria-labelledby="approvalTitle">
-  <div class="card">
-    <div class="head">🛠️ <span id="approvalTitle">Tool permission</span></div>
-    <div class="body">
-      <div class="tool">The AI wants to run <b id="approvalTool">—</b></div>
-      <pre id="approvalArgs"></pre>
-      <div class="warn" id="approvalWarn"></div>
-    </div>
-    <div class="foot">
-      <button class="deny" id="approvalDeny">Deny</button>
-      <button class="allow" id="approvalAllow">Allow</button>
-    </div>
-  </div>
-</div>
 </body>
 </html>

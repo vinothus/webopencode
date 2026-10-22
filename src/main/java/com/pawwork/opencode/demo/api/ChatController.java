@@ -129,7 +129,7 @@ public class ChatController {
             chatService.seed(sessionId, ChatMessage.system(request.getSystemPrompt().trim()));
         }
 
-        ProviderProfile profile = properties.resolve(request.getProvider());
+        ProviderProfile profile = withOverrides(properties.resolve(request.getProvider()), request);
         String model = request.getModel() == null || request.getModel().isBlank()
                 ? profile.defaultModel() : request.getModel();
 
@@ -214,6 +214,33 @@ public class ChatController {
     }
 
     // ------------------------------------------------------------------ tool approval
+
+    /**
+     * Applies a caller-supplied endpoint/key to one request.
+     *
+     * <p>The UI lets people add their own OpenAI-compatible models. Those are not in
+     * {@code opencode.providers.*}, so the request carries the base URL and the key the user
+     * entered; they apply to this call only and are never stored server-side. A custom endpoint
+     * speaks plain OpenAI, not the OpenCode CLI dialect, so those flags are turned off.</p>
+     */
+    static ProviderProfile withOverrides(ProviderProfile base, ChatApiRequest request) {
+        String baseUrl = request.getBaseUrl() == null ? "" : request.getBaseUrl().trim();
+        String apiKey = request.getApiKey() == null ? "" : request.getApiKey().trim();
+        if (baseUrl.isEmpty() && apiKey.isEmpty()) {
+            return base;
+        }
+        boolean customEndpoint = !baseUrl.isEmpty();
+        return new ProviderProfile(
+                base.name(),
+                customEndpoint ? baseUrl : base.baseUrl(),
+                apiKey.isEmpty() ? base.apiKey() : apiKey,
+                base.defaultModel(),
+                customEndpoint ? false : base.opencodeGateway(),
+                base.toolsEnabled(),
+                base.maxTokens(),
+                base.userAgent(),
+                customEndpoint ? false : base.forceStream());
+    }
 
     /**
      * Builds the consent policy for one request from its {@code toolMode}. Unknown or missing modes

@@ -160,6 +160,7 @@ public final class ServerEnvironment {
         String value = path == null ? "" : path.toString();
         if (launcher == null || launcher.kind() != ShellLauncher.Kind.BASH
                 || !"windows".equals(os) || value.length() < 3 || value.charAt(1) != ':') {
+            // On Windows, Java may normalize forward slashes to backslashes; keep POSIX paths as-is
             return value;
         }
         String drive = value.substring(0, 1).toLowerCase(Locale.ROOT);

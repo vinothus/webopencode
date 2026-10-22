@@ -35,6 +35,15 @@ public class ChatApiRequest {
             example = "ask", allowableValues = {"auto", "ask", "off"})
     private String toolMode;
 
+    @Schema(description = "Base URL of a custom OpenAI-compatible endpoint. When set, the provider's "
+            + "configured URL and CLI dialect are replaced for this request only.",
+            example = "https://api.example.com/v1")
+    private String baseUrl;
+
+    @Schema(description = "Bearer key for this request only. It is never stored; clients that add "
+            + "their own models send the key they collected.", example = "sk-...")
+    private String apiKey;
+
     public String getSessionId() {
         return sessionId;
     }
@@ -81,6 +90,22 @@ public class ChatApiRequest {
 
     public void setToolMode(String toolMode) {
         this.toolMode = toolMode;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+
+    public String getApiKey() {
+        return apiKey;
+    }
+
+    public void setApiKey(String apiKey) {
+        this.apiKey = apiKey;
     }
 
     /** @return a defensive copy, so a malformed body fails fast with a clear message. */

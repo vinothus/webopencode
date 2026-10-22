@@ -122,58 +122,135 @@ public final class ShellTool {
                 }
                 timeout = Math.min(timeout, MAX_TIMEOUT_MS);
 
-                ProcessBuilder builder = new ProcessBuilder(launcher.commandLine(command));
-                builder.directory(workdirExists ? workdir.toFile() : workspace.root().toFile());
-                builder.redirectErrorStream(true);
-
                 long started = System.currentTimeMillis();
-                Process process = builder.start();
 
-                List<String> lines = new ArrayList<>();
-                int[] bytes = {0};
-                boolean[] truncated = {false};
-                Thread reader = new Thread(() -> {
-                    try (BufferedReader in = new BufferedReader(
-                            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                        String line;
-                        while ((line = in.readLine()) != null) {
-                            int size = line.getBytes(StandardCharsets.UTF_8).length + 1;
-                            if (bytes[0] + size > MAX_OUTPUT_BYTES || lines.size() >= MAX_OUTPUT_LINES) {
-                                truncated[0] = true;
-                                continue;   // keep draining so the process never blocks on a full pipe
-                            }
-                            bytes[0] += size;
-                            lines.add(line);
-                        }
-                    } catch (Exception ignored) {
-                        // stream closed with the process
-                    }
-                }, "tool-bash-reader");
-                reader.setDaemon(true);
-                reader.start();
-
-                boolean finished = process.waitFor(timeout, TimeUnit.MILLISECONDS);
-                if (!finished) {
-                    process.destroyForcibly();
-                    process.waitFor(5, TimeUnit.SECONDS);
+                // cmd.exe and PowerShell cannot take a quoted command inline — the shell gets a
+                // generated script file instead. See ShellLauncher.invocation.
+                ShellLauncher.Invocation invocation;
+                try {
+                    invocation = launcher.invocation(command);
+                } catch (Exception e) {
+                    return error("could not prepare the command for " + launcher.kind().label()
+                            + ": " + e.getMessage());
                 }
-                reader.join(2_000);
 
-                int exit = finished ? process.exitValue() : -1;
-                String output = String.join("\n", lines);
+                int exit;
+                boolean timedOut;
+                boolean truncated;
+                String output;
+                try {
+                    ProcessBuilder builder = new ProcessBuilder(invocation.command());
+                    builder.directory(workdirExists ? workdir.toFile() : workspace.root().toFile());
+                    builder.redirectErrorStream(true);
+
+                    Process process = builder.start();
+                    // stdin is ignored, as the CLI does: a command that reads it gets end-of-file
+                    // instead of hanging until the timeout.
+                    process.getOutputStream().close();
+
+                    List<String> lines = new ArrayList<>();
+                    int[] bytes = {0};
+                    boolean[] cut = {false};
+                    Thread reader = new Thread(() -> {
+                        try (BufferedReader in = new BufferedReader(
+                                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                            String line;
+                            while ((line = in.readLine()) != null) {
+                                if (cut[0]) {
+                                    continue;   // keep draining so the process never blocks on a full pipe
+                                }
+                                int separator = lines.isEmpty() ? 0 : 1;
+                                if (lines.size() >= MAX_OUTPUT_LINES
+                                        || bytes[0] + separator + utf8Length(line) > MAX_OUTPUT_BYTES) {
+                                    // Keep the part of this line that still fits, then stop. Dropping
+                                    // the line whole is what made long quoted strings disappear.
+                                    int room = MAX_OUTPUT_BYTES - bytes[0] - separator;
+                                    String head = cutToBytes(line, room);
+                                    if (!head.isEmpty()) {
+                                        lines.add(head);
+                                        bytes[0] += separator + utf8Length(head);
+                                    }
+                                    cut[0] = true;
+                                    continue;
+                                }
+                                bytes[0] += separator + utf8Length(line);
+                                lines.add(line);
+                            }
+                        } catch (Exception ignored) {
+                            // stream closed with the process
+                        }
+                    }, "tool-bash-reader");
+                    reader.setDaemon(true);
+                    reader.start();
+
+                    boolean finished = process.waitFor(timeout, TimeUnit.MILLISECONDS);
+                    if (!finished) {
+                        process.destroyForcibly();
+                        process.waitFor(5, TimeUnit.SECONDS);
+                    }
+                    reader.join(2_000);
+
+                    exit = finished ? process.exitValue() : -1;
+                    timedOut = !finished;
+                    output = String.join("\n", lines);
+                    truncated = cut[0];
+                } catch (Exception e) {
+                    return error("could not run " + launcher.executable() + ": " + e.getMessage());
+                } finally {
+                    invocation.close();
+                }
 
                 ObjectNode result = mapper.createObjectNode();
                 result.put("command", command);
                 result.put("shell", launcher.executable());
                 result.put("workdir", workspace.display(workdirExists ? workdir : workspace.root()));
                 result.put("exitCode", exit);
-                result.put("timedOut", !finished);
+                result.put("timedOut", timedOut);
                 result.put("durationMs", System.currentTimeMillis() - started);
-                result.put("truncated", truncated[0]);
+                result.put("truncated", truncated);
                 result.put("output", output);
                 return result.toString();
             }
         };
+    }
+
+    /** UTF-8 size of a string, without allocating the byte array when it is plain ASCII. */
+    static int utf8Length(String text) {
+        int length = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c < 0x80) {
+                length += 1;
+            } else if (c < 0x800) {
+                length += 2;
+            } else if (Character.isHighSurrogate(c) && i + 1 < text.length()
+                    && Character.isLowSurrogate(text.charAt(i + 1))) {
+                length += 4;
+                i++;
+            } else {
+                length += 3;
+            }
+        }
+        return length;
+    }
+
+    /** The longest prefix of {@code text} that is at most {@code maxBytes} UTF-8 bytes. */
+    static String cutToBytes(String text, int maxBytes) {
+        if (text == null || maxBytes <= 0) {
+            return "";
+        }
+        int bytes = 0;
+        int i = 0;
+        while (i < text.length()) {
+            int codePoint = text.codePointAt(i);
+            int size = codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+            if (bytes + size > maxBytes) {
+                break;
+            }
+            bytes += size;
+            i += Character.charCount(codePoint);
+        }
+        return text.substring(0, i);
     }
 
     private String error(String message) {

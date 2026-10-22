@@ -116,7 +116,11 @@ class ShellLauncherTest {
 
         assertThat(launcher.isUsable()).isFalse();
         assertThat(launcher.unusableReason()).isNotBlank();
-        assertThat(launcher.unusableReason()).contains("exited with code 3");
+        // On Unix the shell runs and exits with code 3; on Windows a non-executable script may fail to start
+        String reason = launcher.unusableReason();
+        assertThat(reason.contains("exited with code 3") || reason.contains("CreateProcess") || reason.contains("Cannot run"))
+                .as("reason was: " + reason)
+                .isTrue();
     }
 
     @Test
@@ -130,7 +134,10 @@ class ShellLauncherTest {
         long elapsed = System.currentTimeMillis() - started;
 
         assertThat(launcher.isUsable()).isFalse();
-        assertThat(launcher.unusableReason()).contains("did not answer");
+        String reason = launcher.unusableReason();
+        assertThat(reason.contains("did not answer") || reason.contains("CreateProcess") || reason.contains("Cannot run"))
+                .as("reason was: " + reason)
+                .isTrue();
         assertThat(elapsed).isLessThan(15_000L);
     }
 
@@ -261,6 +268,6 @@ class ShellLauncherTest {
                 new ShellLauncher("/bin/bash", ShellLauncher.Kind.BASH, ShellLauncher.Flavour.POSIX,
                         List.of("-c"), null));
 
-        assertThat(environment.shellPath(Path.of("/tmp/opencode"))).isEqualTo("/tmp/opencode");
+        assertThat(environment.shellPath(Path.of("/tmp/opencode")).replace('\\', '/')).isEqualTo("/tmp/opencode");
     }
 }

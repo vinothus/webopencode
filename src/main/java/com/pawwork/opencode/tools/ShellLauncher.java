@@ -393,12 +393,134 @@ public final class ShellLauncher {
         }
     }
 
-    /** The full command line for one script. */
+    /** The full command line for one script, passed inline with {@code -c} / {@code -Command}. */
     public List<String> commandLine(String script) {
         List<String> line = new ArrayList<>(prefix.size() + 2);
         line.add(executable);
         line.addAll(prefix);
         line.add(script);
         return line;
+    }
+
+    /**
+     * Works out how one script has to be handed to this shell.
+     *
+     * <p>POSIX shells are given the script inline: {@code bash -c <script>}. Every POSIX shell —
+     * including Git Bash and WSL — parses an argument the way the JVM escapes it, where an
+     * embedded {@code "} arrives as {@code \"}.</p>
+     *
+     * <p>{@code cmd.exe} and PowerShell do <em>not</em> understand {@code \"}; they have their own
+     * quoting rules in which {@code ^} and {@code `} are the escapes. Handing them a quoted command
+     * inline therefore truncates it at the first double quote — {@code echo "hello world"} becomes
+     * {@code echo \}} and the rest is lost. Those shells get a generated script file instead, which
+     * is read verbatim and also lifts the 32 KB command-line limit.</p>
+     *
+     * @param script the command to run, exactly as the model wrote it
+     * @return the command line plus the temporary file backing it, when there is one
+     * @throws IOException when the temporary script cannot be written
+     */
+    public Invocation invocation(String script) throws IOException {
+        if (kind == Kind.BASH) {
+            if (isWindows()) {
+                // Git Bash/MSYS/WSL on Windows can mishandle complex quoting via -c passed as arg
+                Path file = writeScript(script, Kind.BASH);
+                List<String> alt = new ArrayList<>(2);
+                alt.add(executable);
+                alt.add(file.toString());
+                return new Invocation(alt, file);
+            }
+            return new Invocation(commandLine(script), null);
+        }
+        Path file = writeScript(script, kind);
+        List<String> line = new ArrayList<>(prefix.size() + 6);
+        line.add(executable);
+        if (kind == Kind.CMD) {
+            // /d skips AutoRun, /s makes cmd strip the quotes the JVM put around a path with spaces
+            line.addAll(List.of("/d", "/s", "/c"));
+        } else {
+            line.addAll(List.of("-NoLogo", "-NoProfile", "-NonInteractive",
+                    "-ExecutionPolicy", "Bypass", "-File"));
+        }
+        line.add(file.toString());
+        return new Invocation(line, file);
+    }
+
+    /**
+     * Writes the script to a temporary file the shell can read.
+     *
+     * <p>The encoding matters: a batch file is read byte-wise in the console code page, so it is
+     * written as UTF-8 with a {@code chcp 65001} prologue, while PowerShell 5.1 assumes ANSI unless
+     * the file starts with a byte-order mark.</p>
+     */
+    private static Path writeScript(String script, Kind kind) throws IOException {
+        Path dir = Paths.get(System.getProperty("java.io.tmpdir", ".")).toAbsolutePath();
+        Files.createDirectories(dir);
+        String normalised = script.replace("\r\n", "\n");
+        if (kind == Kind.CMD) {
+            Path file = Files.createTempFile(dir, "opencode-cmd-", ".bat");
+            String body = "@echo off\r\nchcp 65001 >nul\r\n"
+                    + normalised.replace("\n", "\r\n") + "\r\n";
+            Files.writeString(file, body, StandardCharsets.UTF_8);
+            return file;
+        } else if (kind == Kind.POWERSHELL) {
+            Path file = Files.createTempFile(dir, "opencode-cmd-", ".ps1");
+            byte[] body = normalised.getBytes(StandardCharsets.UTF_8);
+            byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+            byte[] out = new byte[bom.length + body.length];
+            System.arraycopy(bom, 0, out, 0, bom.length);
+            System.arraycopy(body, 0, out, bom.length, body.length);
+            Files.write(file, out);
+            return file;
+        } else {
+            // BASH/GIT_BASH/WSL on Windows - use .sh
+            Path file = Files.createTempFile(dir, "opencode-cmd-", ".sh");
+            String body = normalised + "\n";
+            Files.writeString(file, body, StandardCharsets.UTF_8);
+            try {
+                file.toFile().setExecutable(true, false);
+            } catch (Exception ignored) {
+            }
+            return file;
+        }
+    }
+
+    /**
+     * One prepared call: the command line to start, and the script file to delete afterwards.
+     *
+     * <p>{@link #close()} removes the file; call it only after the process has finished, otherwise
+     * Windows refuses to delete a file the shell still has open.</p>
+     */
+    public static final class Invocation implements AutoCloseable {
+
+        private final List<String> command;
+        private final Path script;
+
+        Invocation(List<String> command, Path script) {
+            this.command = List.copyOf(command);
+            this.script = script;
+        }
+
+        /** The argv to hand to {@link ProcessBuilder}. */
+        public List<String> command() {
+            return command;
+        }
+
+        /** The temporary script, or {@code null} when the command was passed inline. */
+        public Path script() {
+            return script;
+        }
+
+        @Override
+        public void close() {
+            if (script == null) {
+                return;
+            }
+            try {
+                Files.deleteIfExists(script);
+            } catch (IOException ignored) {
+                // Windows may still hold the file for a moment; it lives in the temp directory
+                script.toFile().deleteOnExit();
+            }
+        }
     }
 }
