@@ -35,5 +35,5 @@ echo.
 echo === OpenCode Spring Boot ===
 echo     http://localhost:8080/voice-chat.html
 echo.
-call java %JAVA_OPTS% -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar %*
+call java %JAVA_OPTS% -Djava.library.path=lib -jar target\opencode-spring-boot-1.0.0.jar --server.port=9997 %*
 exit /b %ERRORLEVEL%

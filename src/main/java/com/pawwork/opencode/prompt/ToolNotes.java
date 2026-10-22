@@ -97,11 +97,12 @@ public final class ToolNotes {
             case "bash":
                 return "This server runs commands with the " + environment.shell() + " shell on "
                         + environment.os() + ", in the workspace root (" + root() + ") unless "
-                        + "\"workdir\" says otherwise. The result is a JSON object: {\"command\", "
+                        + "\"workdir\" says otherwise. " + environment.shellSyntaxHint()
+                        + " The result is a JSON object: {\"command\", "
                         + "\"shell\", \"workdir\", \"exitCode\", \"timedOut\", \"durationMs\", "
                         + "\"truncated\", \"output\"}; the combined stdout and stderr is in "
                         + "\"output\", capped at 2000 lines and 51200 bytes. Use "
-                        + environment.tempDirectory() + " for scratch work outside the workspace.";
+                        + scratchDirectory() + " for scratch work outside the workspace.";
             case "webfetch":
                 return "The result is a JSON object: {\"url\", \"status\", \"contentType\", "
                         + "\"format\", \"truncated\", \"content\"}.";
@@ -124,5 +125,17 @@ public final class ToolNotes {
 
     private String root() {
         return environment.workspaceRoot().toString();
+    }
+
+    /**
+     * The scratch directory, named the way the shell will read it.
+     *
+     * <p>On Windows the scratch directory is a Windows path, which a POSIX shell does not
+     * understand — so both forms are given.</p>
+     */
+    private String scratchDirectory() {
+        String java = environment.tempDirectory().toString();
+        String shell = environment.shellPath(environment.tempDirectory());
+        return java.equals(shell) ? java : java + " (in the shell: " + shell + ")";
     }
 }

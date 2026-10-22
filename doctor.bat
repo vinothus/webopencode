@@ -5,9 +5,10 @@ rem  doctor.bat - check that everything is in place.
 rem
 rem  Run this when the app does not start, or when it cannot reach the OpenCode
 rem  gateway. It checks the JDK, the VPN truststore, the sherpa-onnx bindings,
-rem  the native libraries, the local Maven repository, the built jar, the
-rem  downloaded models - and it makes a real HTTPS call to the gateway with the
-rem  truststore that is in force, so a PKIX failure shows up here too.
+rem  the native libraries, the local Maven repository, the built jar, the shell
+rem  the bash tool will use, the downloaded models - and it makes a real HTTPS
+rem  call to the gateway with the truststore that is in force, so a PKIX failure
+rem  shows up here too.
 rem
 rem  Usage:
 rem      doctor.bat
@@ -153,6 +154,28 @@ set /a NOTES+=1
 echo.
 
 :after_target
+
+rem ------------------------------------------------------------------- the shell ---
+echo --- the shell the bash tool uses ---
+set "SHELL_CP="
+if exist "target\opencode-spring-boot-1.0.0.jar.original" set "SHELL_CP=target\opencode-spring-boot-1.0.0.jar.original"
+if not defined SHELL_CP if exist "target\opencode-spring-boot-1.0.0.jar" set "SHELL_CP=target\opencode-spring-boot-1.0.0.jar"
+if not defined SHELL_CP goto :no_shell
+if not exist "scripts\ShellProbe.java" goto :no_shell
+call java -cp "%SHELL_CP%" "scripts\ShellProbe.java"
+if errorlevel 1 (
+    echo   [--] the bash tool has no working shell on this machine - see above.
+    set /a NOTES+=1
+)
+echo.
+goto :after_shell
+
+:no_shell
+echo   [--] the shell cannot be checked yet - build the jar first:  setup.bat
+set /a NOTES+=1
+echo.
+
+:after_shell
 
 rem ------------------------------------------------------------------ the models ---
 echo --- the speech-to-text models ---

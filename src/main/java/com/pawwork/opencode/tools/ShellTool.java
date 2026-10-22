@@ -63,7 +63,7 @@ public final class ShellTool {
 
             @Override
             public String description() {
-                String shell = launcher == null ? "shell" : launcher.kind().label();
+                String shell = launcher == null ? "shell" : launcher.label();
                 return "Run a shell command and return its combined output. Working directory is the "
                         + "workspace root unless 'workdir' is given. Use for builds, tests, git and other "
                         + "terminal work — not for reading or editing files. Commands run with the "
@@ -103,6 +103,10 @@ public final class ShellTool {
                 if (launcher == null) {
                     return error("no shell found on this machine — install bash (or cmd/PowerShell), "
                             + "or set opencode.tools.shell.executable to the shell to use");
+                }
+                if (!launcher.isUsable()) {
+                    return error("the shell " + launcher.executable() + " cannot be used: "
+                            + launcher.unusableReason());
                 }
                 Path workdir;
                 try {
