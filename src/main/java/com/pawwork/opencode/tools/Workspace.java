@@ -41,8 +41,12 @@ public final class Workspace {
         if (raw.isEmpty() || ".".equals(raw) || "./".equals(raw)) {
             return root;
         }
+        Path absolute = absoluteInsideRoot(raw);
+        if (absolute != null) {
+            return absolute;
+        }
         // Strip a leading slash so "/src" and "src" both mean "<root>/src"; absolute host paths
-        // are never honoured.
+        // outside the workspace are never honoured.
         while (raw.startsWith("/")) {
             raw = raw.substring(1);
         }
@@ -52,6 +56,29 @@ public final class Workspace {
             throw new SecurityException("path '" + requested + "' is outside the workspace (" + root + ")");
         }
         return canonical;
+    }
+
+    /**
+     * A genuine absolute path that lies inside the workspace, or {@code null}.
+     *
+     * <p>The CLI's tool descriptions tell the model to pass absolute paths, and it does: it echoes
+     * back the path it was given, or the one it read a moment ago. Honouring such a path — when it
+     * is inside the workspace — keeps those calls working. A path outside the workspace still gets
+     * no special treatment: it is read as workspace-relative, so {@code /src} means
+     * {@code <root>/src} and can never reach the host's real {@code /src}.</p>
+     */
+    private Path absoluteInsideRoot(String raw) {
+        Path requested;
+        try {
+            requested = Path.of(raw);
+        } catch (RuntimeException e) {
+            return null;   // not a path this platform can even name
+        }
+        if (!requested.isAbsolute()) {
+            return null;
+        }
+        Path canonical = canonicalise(requested);
+        return (canonical.equals(root) || canonical.startsWith(root)) ? canonical : null;
     }
 
     /**

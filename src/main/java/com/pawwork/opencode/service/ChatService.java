@@ -15,12 +15,13 @@ import com.pawwork.opencode.model.ToolCall;
 import com.pawwork.opencode.model.ToolDefinition;
 import com.pawwork.opencode.model.ToolExecution;
 import com.pawwork.opencode.model.Usage;
+import com.pawwork.opencode.prompt.AgentProfile;
+import com.pawwork.opencode.tools.OpenCodeToolSchemas;
 import com.pawwork.opencode.tools.ToolApproval;
 import com.pawwork.opencode.tools.ToolContext;
 import com.pawwork.opencode.tools.ToolRegistry;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -79,6 +80,9 @@ public class ChatService {
     private final List<ToolDefinition> officialTools;
     private final ToolApproval approval;
 
+    /** The deployment's system prompt and per-tool notes; {@code null} when the host has none. */
+    private final AgentProfile profile;
+
     /** Sub-agent nesting depth for the turn currently running on this call. */
     private final int nestingDepth;
 
@@ -102,13 +106,7 @@ public class ChatService {
                        ObjectMapper mapper,
                        List<ToolDefinition> officialTools,
                        ToolApproval approval) {
-        this.client = client;
-        this.properties = properties;
-        this.registry = registry;
-        this.mapper = mapper;
-        this.officialTools = officialTools == null ? List.of() : List.copyOf(officialTools);
-        this.approval = approval == null ? ToolApproval.alwaysAllow() : approval;
-        this.nestingDepth = 0;
+        this(client, properties, registry, mapper, officialTools, approval, 0, null);
     }
 
     /**
@@ -121,6 +119,21 @@ public class ChatService {
                        List<ToolDefinition> officialTools,
                        ToolApproval approval,
                        int nestingDepth) {
+        this(client, properties, registry, mapper, officialTools, approval, nestingDepth, null);
+    }
+
+    /**
+     * @param nestingDepth how deep a sub-agent chain this service instance represents (0 at the top)
+     * @param profile      the deployment's system prompt and tool notes; {@code null} for none
+     */
+    public ChatService(OpenAiClient client,
+                       OpenCodeProperties properties,
+                       ToolRegistry registry,
+                       ObjectMapper mapper,
+                       List<ToolDefinition> officialTools,
+                       ToolApproval approval,
+                       int nestingDepth,
+                       AgentProfile profile) {
         this.client = client;
         this.properties = properties;
         this.registry = registry;
@@ -128,11 +141,12 @@ public class ChatService {
         this.officialTools = officialTools == null ? List.of() : List.copyOf(officialTools);
         this.approval = approval == null ? ToolApproval.alwaysAllow() : approval;
         this.nestingDepth = Math.max(0, nestingDepth);
+        this.profile = profile;
     }
 
     /** A copy of this service configured for a sub-agent one level deeper. */
     public ChatService nested(int depth) {
-        return new ChatService(client, properties, registry, mapper, officialTools, approval, depth);
+        return new ChatService(client, properties, registry, mapper, officialTools, approval, depth, profile);
     }
 
     /** This service's nesting depth (0 for the top-level loop). */
@@ -404,7 +418,7 @@ public class ChatService {
     }
 
     private ChatRequest buildRequest(String model, List<ChatMessage> history, boolean streaming) {
-        ChatRequest request = new ChatRequest(model, new ArrayList<>(history));
+        ChatRequest request = new ChatRequest(model, messagesFor(history));
         request.setStream(streaming);
         List<ToolDefinition> tools = tools();
         if (!tools.isEmpty()) {
@@ -414,23 +428,39 @@ public class ChatService {
     }
 
     /**
-     * Tools advertised on every turn: the official CLI schemas (required by the free-tier gate)
-     * plus everything registered locally — a locally registered tool wins on a name clash so an
-     * application can override an official tool it does not want the gateway to own.
+     * The messages of one model call: the default system message first, then the conversation.
+     *
+     * <p>The system prompt is prepended per request rather than stored in the conversation, so it
+     * stays a preamble: it does not grow the history, and a system message the caller seeded is
+     * still the conversation's own first word.</p>
+     */
+    private List<ChatMessage> messagesFor(List<ChatMessage> history) {
+        List<ChatMessage> messages = new ArrayList<>(history.size() + 1);
+        String system = profile == null ? "" : profile.systemPrompt();
+        if (system != null && !system.isBlank()) {
+            messages.add(ChatMessage.system(system));
+        }
+        messages.addAll(history);
+        return messages;
+    }
+
+    /**
+     * Tools advertised on every turn: the official CLI schemas, described in the CLI's own words,
+     * plus everything registered locally. A tool the CLI knows keeps the CLI's description and
+     * argument schema — that text is what makes the model behave — with a note appended saying
+     * what differs here.
      */
     public List<ToolDefinition> tools() {
         if (registry.isEmpty() && officialTools.isEmpty()) {
             return List.of();
         }
-        Map<String, ToolDefinition> merged = new LinkedHashMap<>();
-        for (ToolDefinition definition : registry.definitions()) {
-            merged.putIfAbsent(definition.functionName(), definition);
-        }
-        for (ToolDefinition official : officialTools) {
-            merged.putIfAbsent(official.functionName(), official);
-        }
-        merged.remove("");
-        return new ArrayList<>(merged.values());
+        List<ToolDefinition> merged = OpenCodeToolSchemas.merge(officialTools, registry.definitions(),
+                profile == null ? null : profile::toolDescription);
+        merged.removeIf(definition -> {
+            String name = definition.functionName();
+            return name == null || name.isBlank();
+        });
+        return merged;
     }
 
     private static String abbreviate(String value, int max) {

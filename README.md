@@ -519,8 +519,52 @@ Three local tools are always advertised, plus the eleven official CLI tools:
 | `http_fetch` | Fetches a URL. |
 | `read`, `glob`, `grep`, `write`, `edit`, `bash`, `todowrite`, `webfetch`, `skill`, `task`, `websearch` | The official OpenCode CLI tool set. |
 
-The declarations live in `src/main/resources/opencode_tools.json` and are prepended to the
-tools the gateway advertises.
+The declarations live in `src/main/resources/opencode_tools.json`. They are not just schemas: the
+CLI's tool descriptions **are its instructions**, and they are what the model has been trained to
+follow. So the official description wins — for every tool the CLI knows, the model is shown the
+CLI's own words and the CLI's own argument names (`filePath`, `oldString`, `newString`). A short
+note is appended saying what differs here: the workspace root, the shell in use, and the shape of
+the JSON this server returns. `websearch` is advertised because the gateway's free tier wants the
+names, but it says plainly that this server does not implement it.
+
+`AgentWireTest` guards all of that: it captures a real request against a stub gateway and fails
+if the description mass on the wire drops below 12 000 characters (the CLI sends 16 161).
+
+---
+
+## The agent prompt
+
+The OpenCode CLI never sends a bare user message. Every session opens with the agent's role, the
+date, an `<env>` block and the repository's own instructions — and that preamble is the difference
+between an agent that explores a tree and one that guesses at it. This port sends the same shape:
+
+```
+You are an AI agent running in OpenCode, a coding agent harness. …
+- Prefer parallelizing independent tool calls.
+- Treat unfamiliar files or changes as potential user work and investigate before deleting or overwriting them.
+
+Today's date: Thu Oct 22 2026
+
+<env>
+  Working directory: /srv/app
+  Workspace root folder: /srv/app
+  Is directory a git repo: yes
+  Platform: linux
+  Shell: bash
+  Prefer /tmp over generic system temporary directories such as /tmp; it is pre-created and approved for external access.
+</env>
+```
+
+`AGENTS.md` from the workspace root is appended when there is one. The prompt is a preamble, not
+part of the conversation: it is prepended per request and never stored in the session history, so a
+system prompt supplied by an API caller sits beside it rather than replacing it.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `opencode.system-prompt.enabled` | `true` | Send the agent prompt at all. |
+| `opencode.system-prompt.include-environment` | `true` | Include the `<env>` block. |
+| `opencode.system-prompt.read-agents-file` | `true` | Read `AGENTS.md` from the workspace root. |
+| `opencode.system-prompt.file` | *(blank)* | A file holding the prompt to use instead of the built-in one. |
 
 ---
 
@@ -544,6 +588,7 @@ tools the gateway advertises.
 └── src
     ├── main/java/com/pawwork/opencode
     │   ├── client/ config/ model/ tools/ service/ autoconfigure/   gateway client + tool loop
+    │   ├── prompt/                                                 system prompt + tool notes
     │   ├── demo/                                                    web app, REST API
     │   └── stt/                                                     speech-to-text engine
     ├── main/resources
@@ -565,6 +610,9 @@ tools the gateway advertises.
 
 * `opencode.tools.skills-dir` defaults to `/config/Engineering/pawwork-linux/skills`. Start
   with `--opencode.tools.skills-dir=` on a machine that does not have it.
+* The `bash` tool finds its shell instead of assuming one: a POSIX shell first (Git Bash or WSL
+  on Windows), then `cmd.exe`, then PowerShell. Point it at a specific one with
+  `--opencode.tools.shell.executable=C:\...\bash.exe`.
 * The native libraries cannot be redistributed inside the jar, so they stay in `lib/` and are
   found through `-Djava.library.path=lib`. `spring-boot:run` sets that automatically;
   `java -jar` needs the flag.

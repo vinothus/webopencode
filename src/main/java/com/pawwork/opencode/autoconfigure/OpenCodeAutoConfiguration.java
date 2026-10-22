@@ -5,6 +5,10 @@ import com.pawwork.opencode.client.HourlyRotatingOpenCodeIdentity;
 import com.pawwork.opencode.client.OpenAiClient;
 import com.pawwork.opencode.client.OpenCodeIdentity;
 import com.pawwork.opencode.config.OpenCodeProperties;
+import com.pawwork.opencode.prompt.AgentProfile;
+import com.pawwork.opencode.prompt.AgentPrompt;
+import com.pawwork.opencode.prompt.ServerEnvironment;
+import com.pawwork.opencode.prompt.ToolNotes;
 import com.pawwork.opencode.service.ChatService;
 import com.pawwork.opencode.tools.OpenCodeToolSchemas;
 import com.pawwork.opencode.tools.ToolApproval;
@@ -65,6 +69,36 @@ public class OpenCodeAutoConfiguration {
         return new ToolRegistry(mapper(mapperProvider), registered, properties.getToolResultLimit());
     }
 
+    /** The facts about the machine the agent runs on — the CLI's {@code <env>} block. */
+    @Bean
+    @ConditionalOnMissingBean
+    public ServerEnvironment opencodeServerEnvironment(OpenCodeProperties properties) {
+        return new ServerEnvironment(properties);
+    }
+
+    /** The agent's system prompt: preamble, date, environment and the repository's own instructions. */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentPrompt opencodeAgentPrompt(OpenCodeProperties properties) {
+        return new AgentPrompt(properties);
+    }
+
+    /** The per-tool notes appended to the CLI's tool descriptions. */
+    @Bean
+    @ConditionalOnMissingBean
+    public ToolNotes opencodeToolNotes(ServerEnvironment environment) {
+        return new ToolNotes(environment);
+    }
+
+    /** The system prompt and the tool notes, bundled for the chat service. */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentProfile opencodeAgentProfile(ServerEnvironment environment,
+                                             AgentPrompt prompt,
+                                             ToolNotes notes) {
+        return new AgentProfile(environment, prompt, notes);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public ChatService opencodeChatService(OpenAiClient client,
@@ -72,9 +106,11 @@ public class OpenCodeAutoConfiguration {
                                            ToolRegistry registry,
                                            OpenCodeToolSchemas schemas,
                                            ObjectProvider<ToolApproval> approvalProvider,
+                                           ObjectProvider<AgentProfile> profileProvider,
                                            ObjectProvider<ObjectMapper> mapperProvider) {
         ToolApproval approval = approvalProvider.getIfAvailable(ToolApproval::alwaysAllow);
-        return new ChatService(client, properties, registry, mapper(mapperProvider), schemas.tools(), approval);
+        return new ChatService(client, properties, registry, mapper(mapperProvider), schemas.tools(),
+                approval, 0, profileProvider.getIfAvailable());
     }
 
     /**

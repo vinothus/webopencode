@@ -66,17 +66,17 @@ public final class FileTools {
             public JsonNode parameters() {
                 return schemas(
                         props(
-                                "path", "string", "File path, absolute or relative to the workspace root.",
+                                "filePath", "string", "Path of the file to read, absolute or relative to the workspace root.",
                                 "offset", "integer", "1-based line to start at (default 1).",
                                 "limit", "integer", "Maximum lines to return (default " + MAX_READ_LINES + ")."),
-                        "path");
+                        "filePath");
             }
 
             @Override
             public String execute(JsonNode arguments) throws Exception {
                 Path file;
                 try {
-                    file = workspace.resolve(arguments.path("path").asText(""));
+                    file = workspace.resolve(pathArgument(arguments));
                 } catch (SecurityException e) {
                     return error(e.getMessage());
                 }
@@ -324,16 +324,16 @@ public final class FileTools {
             public JsonNode parameters() {
                 return schemas(
                         props(
-                                "path", "string", "File path inside the workspace.",
+                                "filePath", "string", "Path of the file to write, inside the workspace.",
                                 "content", "string", "Full file contents to write."),
-                        "path", "content");
+                        "filePath", "content");
             }
 
             @Override
             public String execute(JsonNode arguments) throws Exception {
                 Path file;
                 try {
-                    file = workspace.resolve(arguments.path("path").asText(""));
+                    file = workspace.resolve(pathArgument(arguments));
                 } catch (SecurityException e) {
                     return error(e.getMessage());
                 }
@@ -369,7 +369,7 @@ public final class FileTools {
 
             @Override
             public String description() {
-                return "Replace an exact piece of text in a workspace file. By default oldText must "
+                return "Replace an exact piece of text in a workspace file. By default oldString must "
                         + "occur exactly once; set replaceAll to change every occurrence.";
             }
 
@@ -377,39 +377,43 @@ public final class FileTools {
             public JsonNode parameters() {
                 return schemas(
                         props(
-                                "path", "string", "File to edit.",
-                                "oldText", "string", "Exact text to find.",
-                                "newText", "string", "Replacement text (must differ from oldText).",
+                                "filePath", "string", "Path of the file to edit.",
+                                "oldString", "string", "Exact text to find.",
+                                "newString", "string", "Replacement text (must differ from oldString).",
                                 "replaceAll", "boolean", "Replace every occurrence (default false)."),
-                        "path", "oldText", "newText");
+                        "filePath", "oldString", "newString");
             }
 
             @Override
             public String execute(JsonNode arguments) throws Exception {
                 Path file;
                 try {
-                    file = workspace.resolve(arguments.path("path").asText(""));
+                    file = workspace.resolve(pathArgument(arguments));
                 } catch (SecurityException e) {
                     return error(e.getMessage());
                 }
                 if (!Files.isRegularFile(file)) {
                     return error("not a file: " + workspace.display(file));
                 }
-                String oldText = arguments.path("oldText").asText("");
-                String newText = arguments.path("newText").asText("");
+                String oldText = textArgument(arguments, "oldString", "oldText");
+                String newText = textArgument(arguments, "newString", "newText");
+                if (oldText.isEmpty()) {
+                    return error("'oldString' is required");
+                }
                 if (oldText.equals(newText)) {
-                    return error("oldText and newText are identical — nothing to change");
+                    return error("oldString and newString are identical — nothing to change");
                 }
                 boolean replaceAll = arguments.path("replaceAll").asBoolean(false);
 
                 String content = Files.readString(file, StandardCharsets.UTF_8);
                 int occurrences = countOccurrences(content, oldText);
                 if (occurrences == 0) {
-                    return error("oldText not found in " + workspace.display(file));
+                    return error("oldString not found in content");
                 }
                 if (!replaceAll && occurrences > 1) {
-                    return error("oldText occurs " + occurrences + " times in "
-                            + workspace.display(file) + "; add more context or set replaceAll=true");
+                    return error("Found multiple matches for oldString in " + workspace.display(file)
+                            + " (" + occurrences + " occurrences). Provide more surrounding context "
+                            + "to make it unique, or set replaceAll=true.");
                 }
 
                 String updated = replaceAll
@@ -427,6 +431,23 @@ public final class FileTools {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * The path argument.
+     *
+     * <p>The OpenCode CLI calls it {@code filePath}; the older {@code path} is still accepted so a
+     * caller written against the first version keeps working.</p>
+     */
+    private static String pathArgument(JsonNode arguments) {
+        String value = arguments.path("filePath").asText("");
+        return value.isBlank() ? arguments.path("path").asText("") : value;
+    }
+
+    /** A text argument, taking the CLI's name first and the older name second. */
+    private static String textArgument(JsonNode arguments, String name, String legacyName) {
+        String value = arguments.path(name).asText("");
+        return value.isBlank() ? arguments.path(legacyName).asText("") : value;
+    }
 
     /** Walks regular files under {@code base}, skipping {@link #SKIP_DIRS} and hidden directories. */
     private void walk(Path base, java.util.function.Consumer<Path> visitor) throws IOException {

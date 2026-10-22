@@ -50,9 +50,21 @@ opencode:
   force-streaming: true
 
   max-tokens: 32000
-  max-tool-rounds: 12
-  tool-result-limit: 4000
+  max-tool-rounds: 24
+  tool-result-limit: 20000
   max-repeated-tool-failures: 5
+
+  # The system prompt every conversation opens with. The OpenCode CLI never sends
+  # a bare user message: it opens with an agent preamble, the date, an <env>
+  # block (working directory, workspace root, platform, temp dir) and the
+  # repository's own AGENTS.md. Without that, the model has to guess where it is
+  # and what the conventions of the tree are.
+  system-prompt:
+    enabled: true
+    include-environment: true
+    read-agents-file: true
+    # A file holding the prompt to use instead of the built-in one. Blank => built-in.
+    file: ""
 
   # Local tool execution. The built-in coding tools (read/glob/grep/write/edit/bash)
   # run inside this JVM; the file tools are confined to the workspace below.
@@ -69,6 +81,10 @@ opencode:
     skills-dir: /config/Engineering/pawwork-linux/skills
     # How deep the `task` tool may nest sub-agents before refusing.
     max-task-depth: 2
+    # The shell the `bash` tool runs commands with. Blank => detected: a POSIX
+    # shell first (Git Bash or WSL on Windows), then cmd.exe, then PowerShell.
+    shell:
+      executable: ""
 
   connect-timeout-seconds: 30
   request-timeout-seconds: 300

@@ -97,6 +97,9 @@ public class OpenCodeProperties {
     /** Local tool execution settings (workspace root, shell consent, approval timeout). */
     private Tools tools = new Tools();
 
+    /** The agent's system prompt — the instructions every conversation starts with. */
+    private SystemPrompt systemPrompt = new SystemPrompt();
+
     private Retry retry = new Retry();
 
     /** Identity behavior configuration. */
@@ -252,6 +255,9 @@ public class OpenCodeProperties {
     public Tools getTools() { return tools; }
     public void setTools(Tools tools) { this.tools = tools; }
 
+    public SystemPrompt getSystemPrompt() { return systemPrompt; }
+    public void setSystemPrompt(SystemPrompt systemPrompt) { this.systemPrompt = systemPrompt; }
+
     /** Seconds to wait for the browser to answer a {@code tool_approval} event. */
     public int getToolApprovalTimeoutSeconds() { return tools.getApprovalTimeoutSeconds(); }
 
@@ -338,6 +344,40 @@ public class OpenCodeProperties {
     }
 
     /**
+     * The agent's system prompt: the {@code opencode.system-prompt.*} block.
+     *
+     * <p>The OpenCode CLI never sends a bare user message — it opens every session with an agent
+     * preamble, the current date, an {@code <env>} block describing the machine and the
+     * repository's own {@code AGENTS.md}. This block controls whether that prompt is sent.</p>
+     */
+    public static class SystemPrompt {
+
+        /** Master switch: {@code false} sends the user message on its own, as before. */
+        private boolean enabled = true;
+
+        /** Include the {@code <env>} block (working directory, workspace root, platform, temp dir). */
+        private boolean includeEnvironment = true;
+
+        /** Read {@code AGENTS.md} from the workspace root and append it to the prompt. */
+        private boolean readAgentsFile = true;
+
+        /** A file holding the prompt to use instead of the built-in one. Blank ⇒ the built-in one. */
+        private String file = "";
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+        public boolean isIncludeEnvironment() { return includeEnvironment; }
+        public void setIncludeEnvironment(boolean includeEnvironment) { this.includeEnvironment = includeEnvironment; }
+
+        public boolean isReadAgentsFile() { return readAgentsFile; }
+        public void setReadAgentsFile(boolean readAgentsFile) { this.readAgentsFile = readAgentsFile; }
+
+        public String getFile() { return file; }
+        public void setFile(String file) { this.file = file; }
+    }
+
+    /**
      * Local tool execution: the {@code opencode.tools.*} block.
      *
      * <p>{@code workspace} scopes the file tools. Leave it blank to use the process's working
@@ -367,6 +407,9 @@ public class OpenCodeProperties {
         /** Seconds the stream waits for a tool-approval answer before denying the call. */
         private int approvalTimeoutSeconds = 300;
 
+        /** The shell the {@code bash} tool runs commands with. */
+        private Shell shell = new Shell();
+
         public String getWorkspace() { return workspace; }
         public void setWorkspace(String workspace) { this.workspace = workspace; }
 
@@ -384,5 +427,23 @@ public class OpenCodeProperties {
 
         public int getApprovalTimeoutSeconds() { return approvalTimeoutSeconds; }
         public void setApprovalTimeoutSeconds(int value) { this.approvalTimeoutSeconds = value; }
+
+        public Shell getShell() { return shell; }
+        public void setShell(Shell shell) { this.shell = shell; }
+    }
+
+    /**
+     * The shell the {@code bash} tool uses: the {@code opencode.tools.shell.*} block.
+     *
+     * <p>Left blank, the tool finds a shell by itself — a POSIX shell first (Git Bash or WSL on
+     * Windows), then {@code cmd.exe}, then PowerShell. Point it at an executable to override that.</p>
+     */
+    public static class Shell {
+
+        /** The shell executable to run. Blank ⇒ detect one. */
+        private String executable = "";
+
+        public String getExecutable() { return executable; }
+        public void setExecutable(String executable) { this.executable = executable; }
     }
 }

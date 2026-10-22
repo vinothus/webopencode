@@ -19,6 +19,11 @@ import java.util.concurrent.TimeUnit;
  * always-requiring-confirmation — the UI prompts for it even in {@code auto} mode unless the host
  * explicitly opts out. Output is bounded in both lines and bytes, and the command is killed on
  * timeout.</p>
+ *
+ * <p>The shell is discovered rather than assumed. The tool used to run {@code /bin/bash}, which
+ * does not exist on Windows — every command there died with "Cannot run program". Now a POSIX
+ * shell is preferred where one exists (Git Bash or WSL), then {@code cmd.exe}, then PowerShell, and
+ * the description tells the model which shell it is talking to.</p>
  */
 public final class ShellTool {
 
@@ -29,10 +34,24 @@ public final class ShellTool {
 
     private final Workspace workspace;
     private final ObjectMapper mapper;
+    private final ShellLauncher launcher;
 
     public ShellTool(Workspace workspace, ObjectMapper mapper) {
+        this(workspace, mapper, ShellLauncher.discover());
+    }
+
+    /**
+     * @param launcher the shell to run commands with; {@code null} when the machine has none
+     */
+    public ShellTool(Workspace workspace, ObjectMapper mapper, ShellLauncher launcher) {
         this.workspace = workspace;
         this.mapper = mapper;
+        this.launcher = launcher;
+    }
+
+    /** The shell this tool runs commands with, or {@code null} when there is none. */
+    public ShellLauncher launcher() {
+        return launcher;
     }
 
     public ToolHandler handler() {
@@ -44,9 +63,11 @@ public final class ShellTool {
 
             @Override
             public String description() {
+                String shell = launcher == null ? "shell" : launcher.kind().label();
                 return "Run a shell command and return its combined output. Working directory is the "
                         + "workspace root unless 'workdir' is given. Use for builds, tests, git and other "
-                        + "terminal work — not for reading or editing files.";
+                        + "terminal work — not for reading or editing files. Commands run with the "
+                        + shell + ".";
             }
 
             @Override
@@ -79,6 +100,10 @@ public final class ShellTool {
                 if (command.isEmpty()) {
                     return error("'command' is required");
                 }
+                if (launcher == null) {
+                    return error("no shell found on this machine — install bash (or cmd/PowerShell), "
+                            + "or set opencode.tools.shell.executable to the shell to use");
+                }
                 Path workdir;
                 try {
                     workdir = workspace.resolve(arguments.path("workdir").asText(""));
@@ -93,7 +118,7 @@ public final class ShellTool {
                 }
                 timeout = Math.min(timeout, MAX_TIMEOUT_MS);
 
-                ProcessBuilder builder = new ProcessBuilder("/bin/bash", "-lc", command);
+                ProcessBuilder builder = new ProcessBuilder(launcher.commandLine(command));
                 builder.directory(workdirExists ? workdir.toFile() : workspace.root().toFile());
                 builder.redirectErrorStream(true);
 
@@ -135,6 +160,7 @@ public final class ShellTool {
 
                 ObjectNode result = mapper.createObjectNode();
                 result.put("command", command);
+                result.put("shell", launcher.executable());
                 result.put("workdir", workspace.display(workdirExists ? workdir : workspace.root()));
                 result.put("exitCode", exit);
                 result.put("timedOut", !finished);

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pawwork.opencode.config.OpenCodeProperties;
 import com.pawwork.opencode.service.ChatService;
 import com.pawwork.opencode.tools.FileTools;
+import com.pawwork.opencode.tools.ShellLauncher;
 import com.pawwork.opencode.tools.ShellTool;
 import com.pawwork.opencode.tools.SkillTool;
 import com.pawwork.opencode.tools.TaskTool;
@@ -38,8 +39,9 @@ public class CodingTools {
     }
 
     @Bean
-    public ShellTool opencodeShellTool(Workspace workspace, ObjectMapper mapper) {
-        return new ShellTool(workspace, mapper);
+    public ShellTool opencodeShellTool(Workspace workspace, ObjectMapper mapper, OpenCodeProperties properties) {
+        return new ShellTool(workspace, mapper,
+                ShellLauncher.discover(properties.getTools().getShell().getExecutable()));
     }
 
     @Bean
