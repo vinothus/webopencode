@@ -146,7 +146,7 @@ public class ChatController {
                         "provider", profile.name(),
                         "model", String.valueOf(model)));
 
-                chatService.chatStream(sessionId, profile.name(), model, request.getMessage(),
+                chatService.chatStream(sessionId, profile, model, request.getMessage(),
                         new ChatService.StreamListener() {
                             @Override
                             public void onToken(String text) {
@@ -236,10 +236,10 @@ public class ChatController {
                 apiKey.isEmpty() ? base.apiKey() : apiKey,
                 base.defaultModel(),
                 customEndpoint ? false : base.opencodeGateway(),
-                base.toolsEnabled(),
+                customEndpoint ? false : base.toolsEnabled(),
                 base.maxTokens(),
                 base.userAgent(),
-                customEndpoint ? false : base.forceStream());
+                customEndpoint ? true : base.forceStream());
     }
 
     /**

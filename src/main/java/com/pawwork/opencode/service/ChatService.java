@@ -195,6 +195,16 @@ public class ChatService {
         return result;
     }
 
+    public ChatResult chatStream(String sessionId, ProviderProfile profile, String model, String userText,
+                                 StreamListener listener) {
+        if (listener == null) {
+            return chat(sessionId, profile == null ? null : profile.name(), model, userText);
+        }
+        ChatResult result = runTurn(sessionId, profile, model, userText, listener, approval);
+        listener.onDone(result);
+        return result;
+    }
+
     /**
      * Streaming turn with an explicit per-request consent policy, so one page can offer
      * {@code auto} / {@code ask} / {@code off} without restarting the service.
@@ -206,6 +216,17 @@ public class ChatService {
             return chat(sessionId, provider, model, userText);
         }
         ChatResult result = runTurn(sessionId, provider, model, userText, listener, effective);
+        listener.onDone(result);
+        return result;
+    }
+
+    public ChatResult chatStream(String sessionId, ProviderProfile profile, String model, String userText,
+                                 StreamListener listener, ToolApproval requestApproval) {
+        ToolApproval effective = requestApproval == null ? this.approval : requestApproval;
+        if (listener == null) {
+            return chat(sessionId, profile == null ? null : profile.name(), model, userText);
+        }
+        ChatResult result = runTurn(sessionId, profile, model, userText, listener, effective);
         listener.onDone(result);
         return result;
     }
@@ -266,9 +287,17 @@ public class ChatService {
 
     private ChatResult runTurn(String requestedSessionId, String providerName, String requestedModel,
                                String userText, StreamListener listener, ToolApproval effectiveApproval) {
+        ProviderProfile profile = properties.resolve(providerName);
+        return runTurn(requestedSessionId, profile, requestedModel, userText, listener, effectiveApproval);
+    }
+
+    private ChatResult runTurn(String requestedSessionId, ProviderProfile profile, String requestedModel,
+                               String userText, StreamListener listener, ToolApproval effectiveApproval) {
+        if (profile == null) {
+            profile = properties.resolve(null);
+        }
         String sessionId = requestedSessionId == null || requestedSessionId.isBlank()
                 ? newSessionId() : requestedSessionId.trim();
-        ProviderProfile profile = properties.resolve(providerName);
         String model = requestedModel == null || requestedModel.isBlank()
                 ? profile.defaultModel() : requestedModel;
 
